@@ -1,0 +1,11 @@
+{
+  "name": "impronta",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "pnpm --filter @impronta/web dev",
+    "build": "pnpm --filter @impronta/web build",
+    "preview": "pnpm --filter @impronta/web preview",
+    "typecheck": "pnpm --filter @impronta/web typecheck"
+  }
+}

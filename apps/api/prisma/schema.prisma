@@ -1,0 +1,104 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum WineType {
+  white
+  red
+  rose
+  orange
+  sparkling
+  other
+}
+
+model Zone {
+  id               String   @id @default(cuid())
+  name             String
+  slug             String   @unique
+  country          String
+  region           String
+  descriptionShort String
+  descriptionLong  String
+  coverImageUrl    String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  producers Producer[]
+}
+
+model Producer {
+  id              String   @id @default(cuid())
+  zoneId          String
+  name            String
+  slug            String   @unique
+  philosophyShort String
+  storyLong       String
+  location        String?
+  website         String?
+  instagram       String?
+  coverImageUrl   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  zone  Zone  @relation(fields: [zoneId], references: [id], onDelete: Restrict)
+  wines Wine[]
+}
+
+model Wine {
+  id           String   @id @default(cuid())
+  producerId   String
+  name         String
+  slug         String   @unique
+  vintage      Int?
+  type         WineType
+  grapes       String?
+  alcohol      String?
+  vinification String?
+  tastingNotes String?
+  pairing      String?
+  priceCents   Int?
+  isAvailable  Boolean  @default(true)
+  bottleSizeMl Int?
+  imageUrl     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  producer Producer @relation(fields: [producerId], references: [id], onDelete: Restrict)
+}
+
+model ContactLead {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  phone     String?
+  subject   String
+  message   String
+  createdAt DateTime @default(now())
+}
+
+model SiteSettings {
+  id           Int    @id
+  contactEmail String
+  phone        String?
+  address      String?
+  hours        String?
+  socials      Json    @default("{}")
+  updatedAt    DateTime @updatedAt
+}
+
+model HomeContent {
+  id                Int      @id
+  heroImageUrl       String?
+  heroQuote          String
+  story              String
+  vision             String
+  mission            String
+  featuredZoneIds    String[]
+  featuredProducerIds String[]
+  updatedAt          DateTime @updatedAt
+}
