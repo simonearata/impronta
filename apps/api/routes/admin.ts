@@ -2,7 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { prisma } from "../src/prisma.js";
-import { OkSchema } from "../src/schemas.js";
+import { OkSchema, SiteSettingsSchema } from "../src/schemas.js";
+import { settingsOut } from "../src/serializers.js";
 
 const AdminLoginSchema = z.object({
   email: z.string().email(),
@@ -29,10 +30,8 @@ const ContactLeadOutSchema = z.object({
   createdAt: z.string(),
 });
 
-type Session = { refreshToken: string };
-
-const sessions = new Map<string, Session>();
-const refreshIndex = new Map<string, string>();
+const accessSessions = new Set<string>();
+const refreshSessions = new Set<string>();
 
 function getBearer(req: any) {
   const raw = String(req.headers?.authorization || "");
@@ -41,32 +40,12 @@ function getBearer(req: any) {
 
 function requireAdmin(req: any) {
   const token = getBearer(req);
-  if (!token || !sessions.has(token)) {
+  if (!token || !accessSessions.has(token)) {
     const err: any = new Error("Unauthorized");
     err.statusCode = 401;
     throw err;
   }
   return token;
-}
-
-function createSession() {
-  const accessToken = randomUUID();
-  const refreshToken = randomUUID();
-  sessions.set(accessToken, { refreshToken });
-  refreshIndex.set(refreshToken, accessToken);
-  return { accessToken, refreshToken };
-}
-
-function deleteSessionByAccessToken(accessToken: string) {
-  const s = sessions.get(accessToken);
-  if (s) refreshIndex.delete(s.refreshToken);
-  sessions.delete(accessToken);
-}
-
-function deleteSessionByRefreshToken(refreshToken: string) {
-  const accessToken = refreshIndex.get(refreshToken);
-  if (accessToken) deleteSessionByAccessToken(accessToken);
-  refreshIndex.delete(refreshToken);
 }
 
 export async function adminRoutes(app: FastifyInstance) {
@@ -85,25 +64,72 @@ export async function adminRoutes(app: FastifyInstance) {
     const ok = body.email === ADMIN_EMAIL && body.password === ADMIN_PASSWORD;
     if (!ok) return reply.code(401).send("Credenziali non valide");
 
-    const s = createSession();
-    return AdminLoginOutSchema.parse({ ok: true, ...s });
+    const accessToken = randomUUID();
+    const refreshToken = randomUUID();
+
+    accessSessions.add(accessToken);
+    refreshSessions.add(refreshToken);
+
+    return AdminLoginOutSchema.parse({ ok: true, accessToken, refreshToken });
   });
 
   app.post("/admin/refresh", async (req, reply) => {
     const body = AdminRefreshSchema.parse((req as any).body);
 
-    const accessToken = refreshIndex.get(body.refreshToken);
-    if (!accessToken) return reply.code(401).send("Refresh token non valido");
+    if (!refreshSessions.has(body.refreshToken)) {
+      return reply.code(401).send("Refresh token non valido");
+    }
 
-    deleteSessionByRefreshToken(body.refreshToken);
+    refreshSessions.delete(body.refreshToken);
 
-    const s = createSession();
-    return AdminLoginOutSchema.parse({ ok: true, ...s });
+    const accessToken = randomUUID();
+    const refreshToken = randomUUID();
+
+    accessSessions.add(accessToken);
+    refreshSessions.add(refreshToken);
+
+    return AdminLoginOutSchema.parse({ ok: true, accessToken, refreshToken });
   });
 
   app.post("/admin/logout", async (req) => {
-    const accessToken = getBearer(req);
-    if (accessToken) deleteSessionByAccessToken(accessToken);
+    const token = getBearer(req);
+    if (token) accessSessions.delete(token);
+    return OkSchema.parse({ ok: true });
+  });
+
+  app.get("/admin/settings", async (req) => {
+    requireAdmin(req);
+
+    const row = await prisma.siteSettings.findUnique({ where: { id: 1 } });
+    if (!row) throw new Error("SiteSettings mancante");
+
+    return SiteSettingsSchema.parse(settingsOut(row));
+  });
+
+  app.put("/admin/settings", async (req) => {
+    requireAdmin(req);
+
+    const payload = SiteSettingsSchema.parse((req as any).body);
+
+    await prisma.siteSettings.upsert({
+      where: { id: 1 },
+      create: {
+        id: 1,
+        contactEmail: payload.contactEmail,
+        phone: payload.phone,
+        address: payload.address,
+        hours: payload.hours,
+        socials: payload.socials as any,
+      },
+      update: {
+        contactEmail: payload.contactEmail,
+        phone: payload.phone,
+        address: payload.address,
+        hours: payload.hours,
+        socials: payload.socials as any,
+      },
+    });
+
     return OkSchema.parse({ ok: true });
   });
 
@@ -124,7 +150,7 @@ export async function adminRoutes(app: FastifyInstance) {
         subject: r.subject,
         message: r.message,
         createdAt: r.createdAt.toISOString(),
-      }))
+      })),
     );
   });
 }

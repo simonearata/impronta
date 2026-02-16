@@ -19,7 +19,7 @@ const AdminLoginOutSchema = z.object({
 async function apiRequest<T>(
   schema: z.ZodType<T>,
   path: string,
-  init?: RequestInit
+  init?: RequestInit,
 ): Promise<T> {
   if (!API_URL) throw new Error("VITE_API_URL mancante");
 
@@ -39,7 +39,7 @@ async function apiRequest<T>(
 
 export async function login(
   email: string,
-  password: string
+  password: string,
 ): Promise<AuthSession> {
   const input = AuthLoginInputSchema.parse({ email, password });
 
@@ -78,7 +78,7 @@ export async function refresh(refreshToken: string): Promise<AuthSession> {
     });
 
     const email = String(
-      import.meta.env.VITE_ADMIN_EMAIL || "admin@impronta.local"
+      import.meta.env.VITE_ADMIN_EMAIL || "admin@impronta.local",
     ).trim();
 
     return {

@@ -43,7 +43,7 @@ export function WineDetailPage() {
     : "Ciao, vorrei informazioni su un vino. Grazie.";
 
   const contactHref = `/contatti?subject=${encodeURIComponent(
-    subject
+    subject,
   )}&message=${encodeURIComponent(message)}`;
 
   return (
@@ -114,7 +114,7 @@ export function WineDetailPage() {
 
                     <div className="mt-8 flex flex-wrap gap-3">
                       <Link
-                        className="focus-ring rounded-full px-4 py-2 text-sm bg-neutral-900 text-[rgb(var(--bg))]"
+                        className="focus-ring rounded-full px-4 py-2 text-sm border border-black/10 bg-black/5"
                         to={contactHref}
                         aria-label="Contattaci per questo vino"
                       >

@@ -5,15 +5,21 @@ import { EmptyState } from "../components/EmptyState";
 import { Input } from "../components/Input";
 import { Meta } from "../components/Meta";
 import { Textarea } from "../components/Textarea";
-import { adminUpdateSettings, useAdminSettings } from "../data/admin";
+import {
+  adminUpdateSettings,
+  useAdminContactLeads,
+  useAdminSettings,
+} from "../data/admin";
 import { SiteSettingsSchema } from "../shared/schemas";
+import { DATA_SOURCE } from "../data/config";
 
 type Form = z.infer<typeof SiteSettingsSchema>;
 
 type Lead = {
+  id?: string;
   name: string;
   email: string;
-  phone?: string;
+  phone?: string | null;
   subject: string;
   message: string;
   createdAt: string;
@@ -53,6 +59,8 @@ function cleanSocials(socials: unknown): Socials {
 
 export function AdminContactsEditorPage() {
   const settings = useAdminSettings();
+  const leadsApi = useAdminContactLeads();
+
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [dirty, setDirty] = useState(false);
@@ -71,10 +79,17 @@ export function AdminContactsEditorPage() {
     setForm(settings.data);
   }, [settings.data, dirty]);
 
-  const [leads, setLeads] = useState<Lead[]>(() => readLeads().slice(0, 20));
+  // LEADS:
+  // - in mock: localStorage (come prima)
+  // - in api: SWR via /admin/contact-leads
+  const [leadsMock, setLeadsMock] = useState<Lead[]>(() =>
+    readLeads().slice(0, 20),
+  );
 
   useEffect(() => {
-    const refresh = () => setLeads(readLeads().slice(0, 20));
+    if (DATA_SOURCE !== "mock") return;
+
+    const refresh = () => setLeadsMock(readLeads().slice(0, 20));
 
     refresh();
 
@@ -90,6 +105,11 @@ export function AdminContactsEditorPage() {
       window.clearInterval(id);
     };
   }, []);
+
+  const leads: Lead[] =
+    DATA_SOURCE === "api"
+      ? (leadsApi.data || []).slice(0, 200)
+      : leadsMock.slice(0, 20);
 
   function set<K extends keyof Form>(key: K, value: Form[K]) {
     setDirty(true);
@@ -138,15 +158,15 @@ export function AdminContactsEditorPage() {
 
   const ig = useMemo(
     () => (cleanSocials(form.socials).instagram ?? "") as string,
-    [form.socials]
+    [form.socials],
   );
   const wa = useMemo(
     () => (cleanSocials(form.socials).whatsapp ?? "") as string,
-    [form.socials]
+    [form.socials],
   );
   const web = useMemo(
     () => (cleanSocials(form.socials).website ?? "") as string,
-    [form.socials]
+    [form.socials],
   );
 
   return (
@@ -291,15 +311,21 @@ export function AdminContactsEditorPage() {
               RICHIESTE
             </div>
             <h2 className="mt-2 font-serif text-3xl tracking-tighter2">
-              Lead (mock)
+              Lead {DATA_SOURCE === "mock" ? "(mock)" : ""}
             </h2>
             <div className="mt-4 text-sm text-neutral-700 leading-relaxed">
-              In mock arrivano da localStorage del form Contatti. Con backend li
-              leggeremo dal DB.
+              {DATA_SOURCE === "mock"
+                ? "In mock arrivano da localStorage del form Contatti. Con backend li leggeremo dal DB."
+                : "In api arrivano dal DB via /admin/contact-leads."}
             </div>
 
             <div className="mt-6 grid gap-3">
-              {leads.length === 0 ? (
+              {DATA_SOURCE === "api" && leadsApi.error ? (
+                <EmptyState
+                  title="Errore"
+                  description={String(leadsApi.error.message || leadsApi.error)}
+                />
+              ) : leads.length === 0 ? (
                 <EmptyState
                   title="Nessuna richiesta"
                   description="Invia un messaggio dalla pagina Contatti per vederlo qui."
@@ -307,7 +333,7 @@ export function AdminContactsEditorPage() {
               ) : (
                 leads.map((l, i) => (
                   <div
-                    key={i}
+                    key={(l as any).id ?? i}
                     className="rounded-2xl border border-black/10 bg-black/[0.02] p-5"
                   >
                     <div className="text-xs text-neutral-600">

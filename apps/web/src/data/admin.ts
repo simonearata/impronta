@@ -1,5 +1,6 @@
 import useSWR, { mutate } from "swr";
 import { z } from "zod";
+
 import type {
   HomeContent,
   Producer,
@@ -8,6 +9,7 @@ import type {
   WineType,
   Zone,
 } from "../shared/types";
+
 import {
   HomeContentSchema,
   ProducerSchema,
@@ -16,6 +18,7 @@ import {
   WineTypeSchema,
   ZoneSchema,
 } from "../shared/schemas";
+
 import {
   home as seedHome,
   producers as seedProducers,
@@ -23,8 +26,13 @@ import {
   wines as seedWines,
   zones as seedZones,
 } from "./mock";
+
 import { DATA_SOURCE as MODE } from "./config";
-import { apiRequest } from "./api";
+import { adminRequest } from "../auth/adminApi";
+
+/* =========================
+   MOCK DB (localStorage)
+   ========================= */
 
 const KEY = "impronta_mock_db_v1";
 
@@ -77,45 +85,28 @@ function writeDb(db: AdminDb) {
 function slugTaken(
   list: Array<{ id: string; slug: string }>,
   slug: string,
-  excludeId?: string
+  excludeId?: string,
 ) {
   return list.some((x) => x.slug === slug && x.id !== excludeId);
 }
 
+/* =========================
+   ZONES (MOCK ONLY)
+   ========================= */
+
 export async function adminListZones(): Promise<Zone[]> {
-  if (MODE === "api")
-    return apiRequest(z.array(ZoneSchema), "/admin/zones", undefined, {
-      auth: true,
-    });
   return readDb().zones;
 }
 
 export async function adminGetZone(id: string): Promise<Zone> {
-  if (MODE === "api")
-    return apiRequest(
-      ZoneSchema,
-      `/admin/zones/${encodeURIComponent(id)}`,
-      undefined,
-      {
-        auth: true,
-      }
-    );
   const z0 = readDb().zones.find((x) => x.id === id);
   if (!z0) throw new Error("Zona non trovata");
   return z0;
 }
 
 export async function adminUpsertZone(
-  input: Omit<Zone, "createdAt" | "updatedAt"> & { createdAt?: string }
+  input: Omit<Zone, "createdAt" | "updatedAt"> & { createdAt?: string },
 ): Promise<Zone> {
-  if (MODE === "api")
-    return apiRequest(
-      ZoneSchema,
-      `/admin/zones/${encodeURIComponent(input.id || "new")}`,
-      { method: "PUT", body: JSON.stringify(input) },
-      { auth: true }
-    );
-
   const db = readDb();
   const isNew = !input.id || !db.zones.some((z0) => z0.id === input.id);
   const id = isNew ? newId() : input.id;
@@ -138,65 +129,41 @@ export async function adminUpsertZone(
   const next = isNew
     ? [zone, ...db.zones]
     : db.zones.map((x) => (x.id === id ? zone : x));
+
   writeDb({ ...db, zones: next });
   mutate("admin:zones");
   return zone;
 }
 
 export async function adminDeleteZone(id: string): Promise<void> {
-  if (MODE === "api") {
-    await apiRequest(
-      z.object({ ok: z.literal(true) }),
-      `/admin/zones/${encodeURIComponent(id)}`,
-      { method: "DELETE" },
-      { auth: true }
-    );
-    return;
-  }
-
   const db = readDb();
   const hasProducers = db.producers.some((p) => p.zoneId === id);
   if (hasProducers)
     throw new Error(
-      "Impossibile eliminare: esistono aziende collegate a questa zona."
+      "Impossibile eliminare: esistono aziende collegate a questa zona.",
     );
 
   writeDb({ ...db, zones: db.zones.filter((x) => x.id !== id) });
   mutate("admin:zones");
 }
 
+/* =========================
+   PRODUCERS (MOCK ONLY)
+   ========================= */
+
 export async function adminListProducers(): Promise<Producer[]> {
-  if (MODE === "api")
-    return apiRequest(z.array(ProducerSchema), "/admin/producers", undefined, {
-      auth: true,
-    });
   return readDb().producers;
 }
 
 export async function adminGetProducer(id: string): Promise<Producer> {
-  if (MODE === "api")
-    return apiRequest(
-      ProducerSchema,
-      `/admin/producers/${encodeURIComponent(id)}`,
-      undefined,
-      { auth: true }
-    );
   const p = readDb().producers.find((x) => x.id === id);
   if (!p) throw new Error("Azienda non trovata");
   return p;
 }
 
 export async function adminUpsertProducer(
-  input: Omit<Producer, "createdAt" | "updatedAt"> & { createdAt?: string }
+  input: Omit<Producer, "createdAt" | "updatedAt"> & { createdAt?: string },
 ): Promise<Producer> {
-  if (MODE === "api")
-    return apiRequest(
-      ProducerSchema,
-      `/admin/producers/${encodeURIComponent(input.id || "new")}`,
-      { method: "PUT", body: JSON.stringify(input) },
-      { auth: true }
-    );
-
   const db = readDb();
   const isNew = !input.id || !db.producers.some((p) => p.id === input.id);
   const id = isNew ? newId() : input.id;
@@ -224,67 +191,41 @@ export async function adminUpsertProducer(
   const next = isNew
     ? [producer, ...db.producers]
     : db.producers.map((x) => (x.id === id ? producer : x));
+
   writeDb({ ...db, producers: next });
   mutate("admin:producers");
   return producer;
 }
 
 export async function adminDeleteProducer(id: string): Promise<void> {
-  if (MODE === "api") {
-    await apiRequest(
-      z.object({ ok: z.literal(true) }),
-      `/admin/producers/${encodeURIComponent(id)}`,
-      { method: "DELETE" },
-      { auth: true }
-    );
-    return;
-  }
-
   const db = readDb();
   const hasWines = db.wines.some((w) => w.producerId === id);
   if (hasWines)
     throw new Error(
-      "Impossibile eliminare: esistono vini collegati a questa azienda."
+      "Impossibile eliminare: esistono vini collegati a questa azienda.",
     );
 
   writeDb({ ...db, producers: db.producers.filter((x) => x.id !== id) });
   mutate("admin:producers");
 }
 
+/* =========================
+   WINES (MOCK ONLY)
+   ========================= */
+
 export async function adminListWines(): Promise<Wine[]> {
-  if (MODE === "api")
-    return apiRequest(z.array(WineSchema), "/admin/wines", undefined, {
-      auth: true,
-    });
   return readDb().wines;
 }
 
 export async function adminGetWine(id: string): Promise<Wine> {
-  if (MODE === "api")
-    return apiRequest(
-      WineSchema,
-      `/admin/wines/${encodeURIComponent(id)}`,
-      undefined,
-      {
-        auth: true,
-      }
-    );
   const w = readDb().wines.find((x) => x.id === id);
   if (!w) throw new Error("Vino non trovato");
   return w;
 }
 
 export async function adminUpsertWine(
-  input: Omit<Wine, "createdAt" | "updatedAt"> & { createdAt?: string }
+  input: Omit<Wine, "createdAt" | "updatedAt"> & { createdAt?: string },
 ): Promise<Wine> {
-  if (MODE === "api")
-    return apiRequest(
-      WineSchema,
-      `/admin/wines/${encodeURIComponent(input.id || "new")}`,
-      { method: "PUT", body: JSON.stringify(input) },
-      { auth: true }
-    );
-
   const db = readDb();
   const isNew = !input.id || !db.wines.some((w) => w.id === input.id);
   const id = isNew ? newId() : input.id;
@@ -293,6 +234,7 @@ export async function adminUpsertWine(
     throw new Error("Azienda non valida.");
   if (slugTaken(db.wines, input.slug, isNew ? undefined : id))
     throw new Error("Slug già in uso per un vino.");
+
   WineTypeSchema.parse(input.type);
 
   const createdAt = isNew
@@ -319,46 +261,29 @@ export async function adminUpsertWine(
   const next = isNew
     ? [wine, ...db.wines]
     : db.wines.map((x) => (x.id === id ? wine : x));
+
   writeDb({ ...db, wines: next });
   mutate("admin:wines");
   return wine;
 }
 
 export async function adminDeleteWine(id: string): Promise<void> {
-  if (MODE === "api") {
-    await apiRequest(
-      z.object({ ok: z.literal(true) }),
-      `/admin/wines/${encodeURIComponent(id)}`,
-      { method: "DELETE" },
-      { auth: true }
-    );
-    return;
-  }
-
   const db = readDb();
   writeDb({ ...db, wines: db.wines.filter((x) => x.id !== id) });
   mutate("admin:wines");
 }
 
+/* =========================
+   HOME (MOCK ONLY)
+   ========================= */
+
 export async function adminGetHome(): Promise<HomeContent> {
-  if (MODE === "api")
-    return apiRequest(HomeContentSchema, "/admin/home", undefined, {
-      auth: true,
-    });
   return readDb().home;
 }
 
 export async function adminUpdateHome(
-  input: HomeContent
+  input: HomeContent,
 ): Promise<HomeContent> {
-  if (MODE === "api")
-    return apiRequest(
-      HomeContentSchema,
-      "/admin/home",
-      { method: "PUT", body: JSON.stringify(input) },
-      { auth: true }
-    );
-
   const db = readDb();
   const next = HomeContentSchema.parse(input);
   writeDb({ ...db, home: next });
@@ -367,24 +292,25 @@ export async function adminUpdateHome(
   return next;
 }
 
+/* =========================
+   SETTINGS (API ONLY when MODE==="api")
+   ========================= */
+
 export async function adminGetSettings(): Promise<SiteSettings> {
   if (MODE === "api")
-    return apiRequest(SiteSettingsSchema, "/admin/settings", undefined, {
-      auth: true,
-    });
+    return adminRequest(SiteSettingsSchema, "/admin/settings");
   return readDb().settings;
 }
 
 export async function adminUpdateSettings(
-  input: SiteSettings
+  input: SiteSettings,
 ): Promise<SiteSettings> {
-  if (MODE === "api")
-    return apiRequest(
-      SiteSettingsSchema,
-      "/admin/settings",
-      { method: "PUT", body: JSON.stringify(input) },
-      { auth: true }
-    );
+  if (MODE === "api") {
+    return adminRequest(SiteSettingsSchema, "/admin/settings", {
+      method: "PUT",
+      body: JSON.stringify(input),
+    });
+  }
 
   const db = readDb();
   const next = SiteSettingsSchema.parse(input);
@@ -394,10 +320,61 @@ export async function adminUpdateSettings(
   return next;
 }
 
+/* =========================
+   CONTACT LEADS (API ONLY when MODE==="api")
+   ========================= */
+
+const ContactLeadSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  email: z.string().email(),
+  phone: z.string().nullable(),
+  subject: z.string().min(1),
+  message: z.string().min(1),
+  createdAt: z.string().min(1),
+});
+
+export type AdminContactLead = z.infer<typeof ContactLeadSchema>;
+
+function readMockLeads(): AdminContactLead[] {
+  const raw = localStorage.getItem("impronta_contact_leads");
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw) as unknown;
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .map((x: any, i: number) => {
+        const createdAt = String(x?.createdAt || now());
+        return {
+          id: String(x?.id || `mock_${i}_${createdAt}`),
+          name: String(x?.name || ""),
+          email: String(x?.email || ""),
+          phone: x?.phone == null ? null : String(x.phone),
+          subject: String(x?.subject || ""),
+          message: String(x?.message || ""),
+          createdAt,
+        };
+      })
+      .filter((x) => x.name && x.email && x.subject && x.message);
+  } catch {
+    return [];
+  }
+}
+
+export async function adminListContactLeads(): Promise<AdminContactLead[]> {
+  if (MODE === "api") {
+    return adminRequest(z.array(ContactLeadSchema), "/admin/contact-leads");
+  }
+  return readMockLeads().slice(0, 200);
+}
+
+/* =========================
+   SWR HOOKS
+   ========================= */
+
 export function useAdminZones() {
   return useSWR("admin:zones", adminListZones);
 }
-
 export function useAdminZone(id: string | undefined) {
   return useSWR(id ? `admin:zone:${id}` : null, () => adminGetZone(id!));
 }
@@ -405,17 +382,15 @@ export function useAdminZone(id: string | undefined) {
 export function useAdminProducers() {
   return useSWR("admin:producers", adminListProducers);
 }
-
 export function useAdminProducer(id: string | undefined) {
   return useSWR(id ? `admin:producer:${id}` : null, () =>
-    adminGetProducer(id!)
+    adminGetProducer(id!),
   );
 }
 
 export function useAdminWines() {
   return useSWR("admin:wines", adminListWines);
 }
-
 export function useAdminWine(id: string | undefined) {
   return useSWR(id ? `admin:wine:${id}` : null, () => adminGetWine(id!));
 }
@@ -423,9 +398,11 @@ export function useAdminWine(id: string | undefined) {
 export function useAdminHome() {
   return useSWR("admin:home", adminGetHome);
 }
-
 export function useAdminSettings() {
   return useSWR("admin:settings", adminGetSettings);
+}
+export function useAdminContactLeads() {
+  return useSWR("admin:contact-leads", adminListContactLeads);
 }
 
 export function wineTypeOptions(): Array<{ value: WineType; label: string }> {
@@ -441,13 +418,13 @@ export function wineTypeOptions(): Array<{ value: WineType; label: string }> {
     t === "white"
       ? "Bianco"
       : t === "red"
-      ? "Rosso"
-      : t === "rose"
-      ? "Rosé"
-      : t === "orange"
-      ? "Orange"
-      : t === "sparkling"
-      ? "Spumante"
-      : "Altro";
+        ? "Rosso"
+        : t === "rose"
+          ? "Rosé"
+          : t === "orange"
+            ? "Orange"
+            : t === "sparkling"
+              ? "Spumante"
+              : "Altro";
   return list.map((v) => ({ value: v, label: label(v) }));
 }

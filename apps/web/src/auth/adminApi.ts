@@ -1,69 +1,87 @@
 import { z } from "zod";
-import { readSession, writeSession } from "./storage";
+import { clearSession, readSession, writeSession } from "./storage";
 import * as client from "./client";
 
-const API_URL = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+const API_URL = String(import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 
-const ContactLeadOutSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  email: z.string(),
-  phone: z.string().nullable(),
-  subject: z.string(),
-  message: z.string(),
-  createdAt: z.string(),
-});
-
-export type ContactLead = z.infer<typeof ContactLeadOutSchema>;
-
-function getApiUrl() {
+async function fetchJson(path: string, init?: RequestInit) {
   if (!API_URL) throw new Error("VITE_API_URL mancante");
-  return API_URL;
+
+  const res = await fetch(`${API_URL}${path}`, {
+    headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
+    ...init,
+  });
+
+  const text = await res.text().catch(() => "");
+  const json = text
+    ? (() => {
+        try {
+          return JSON.parse(text);
+        } catch {
+          return text;
+        }
+      })()
+    : null;
+
+  return { res, json };
 }
 
-async function rawRequest(path: string, init?: RequestInit) {
-  const url = `${getApiUrl()}${path}`;
-  const res = await fetch(url, init);
-  return res;
-}
-
-async function requestJson<T>(
+export async function adminRequest<T>(
   schema: z.ZodType<T>,
   path: string,
   init?: RequestInit,
-  triedRefresh = false
 ): Promise<T> {
-  const s = readSession();
-  if (!s?.accessToken) throw new Error("Non autenticato");
+  const s0 = readSession();
+  if (!s0?.accessToken) throw new Error("Non autenticato");
 
-  const res = await rawRequest(path, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${s.accessToken}`,
-      ...(init?.headers || {}),
-    },
-  });
+  const doReq = async (accessToken: string) => {
+    const { res, json } = await fetchJson(path, {
+      ...init,
+      headers: {
+        ...(init?.headers || {}),
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
 
-  if (res.status === 401 && !triedRefresh) {
-    if (!s.refreshToken) throw new Error("Sessione scaduta");
+    if (res.status === 401) {
+      const err: any = new Error(
+        typeof json === "string" ? json : "Unauthorized",
+      );
+      err.status = 401;
+      throw err;
+    }
 
-    const next = await client.refresh(s.refreshToken);
-    writeSession(next);
-    window.dispatchEvent(new Event("impronta:auth-session"));
+    if (!res.ok) {
+      const msg =
+        typeof json === "string"
+          ? json
+          : json && typeof json === "object" && "message" in (json as any)
+            ? String((json as any).message)
+            : `Request failed: ${res.status}`;
+      throw new Error(msg);
+    }
 
-    return requestJson(schema, path, init, true);
+    return schema.parse(json);
+  };
+
+  try {
+    return await doReq(s0.accessToken);
+  } catch (e: any) {
+    if (e?.status !== 401) throw e;
+
+    const s1 = readSession();
+    if (!s1?.refreshToken) {
+      clearSession();
+      throw new Error("Sessione scaduta, rifai login");
+    }
+
+    try {
+      const next = await client.refresh(s1.refreshToken);
+      writeSession(next);
+      return await doReq(next.accessToken);
+    } catch {
+      clearSession();
+      throw new Error("Sessione scaduta, rifai login");
+    }
   }
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(txt || `Request failed: ${res.status}`);
-  }
-
-  const json = await res.json().catch(() => ({}));
-  return schema.parse(json);
-}
-
-export async function listContactLeads(): Promise<ContactLead[]> {
-  return requestJson(z.array(ContactLeadOutSchema), "/admin/contact-leads");
 }

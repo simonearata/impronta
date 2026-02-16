@@ -14,7 +14,7 @@ const AuthContext = createContext<AuthValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<AuthSession | null>(() =>
-    readSession()
+    readSession(),
   );
 
   useEffect(() => {

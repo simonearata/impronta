@@ -3,6 +3,7 @@ import { Container } from "../components/Container";
 import { Meta } from "../components/Meta";
 import { Skeleton } from "../components/Skeleton";
 import { useHome, useProducers, useZones } from "../data";
+import type { Zone, Producer } from "../shared/types";
 
 function pickByIds<T extends { id: string }>(items: T[], ids: string[]) {
   const map = new Map(items.map((x) => [x.id, x] as const));
@@ -145,31 +146,33 @@ export function HomePage() {
           </div>
 
           <div className="mt-6 grid gap-4 md:grid-cols-3">
-            {(zones.isLoading ? Array.from({ length: 3 }) : featuredZones).map(
-              (z, i) =>
-                zones.isLoading ? (
-                  <div key={i} className="card-surface rounded-2xl p-6">
-                    <Skeleton className="h-5 w-2/3" />
-                    <Skeleton className="mt-4 h-4 w-full" />
-                    <Skeleton className="mt-2 h-4 w-[85%]" />
+            {(zones.isLoading
+              ? (Array.from({ length: 3 }) as unknown[])
+              : featuredZones
+            ).map((z, i) =>
+              zones.isLoading ? (
+                <div key={i} className="card-surface rounded-2xl p-6">
+                  <Skeleton className="h-5 w-2/3" />
+                  <Skeleton className="mt-4 h-4 w-full" />
+                  <Skeleton className="mt-2 h-4 w-[85%]" />
+                </div>
+              ) : (
+                <Link
+                  key={(z as Zone).id}
+                  to={`/zone/${(z as Zone).slug}`}
+                  className="focus-ring card-surface rounded-2xl p-6 block hover:bg-black/[0.02]"
+                >
+                  <div className="font-serif text-2xl tracking-tighter2">
+                    {(z as Zone).name}
                   </div>
-                ) : (
-                  <Link
-                    key={z.id}
-                    to={`/zone/${z.slug}`}
-                    className="focus-ring card-surface rounded-2xl p-6 block hover:bg-black/[0.02]"
-                  >
-                    <div className="font-serif text-2xl tracking-tighter2">
-                      {z.name}
-                    </div>
-                    <div className="mt-1 text-xs text-neutral-600">
-                      {z.country} · {z.region}
-                    </div>
-                    <div className="mt-3 text-sm text-neutral-800 leading-relaxed">
-                      {z.descriptionShort}
-                    </div>
-                  </Link>
-                )
+                  <div className="mt-1 text-xs text-neutral-600">
+                    {(z as Zone).country} · {(z as Zone).region}
+                  </div>
+                  <div className="mt-3 text-sm text-neutral-800 leading-relaxed">
+                    {(z as Zone).descriptionShort}
+                  </div>
+                </Link>
+              ),
             )}
           </div>
         </Container>
@@ -196,7 +199,7 @@ export function HomePage() {
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             {(producers.isLoading
-              ? Array.from({ length: 4 })
+              ? (Array.from({ length: 4 }) as unknown[])
               : featuredProducers
             ).map((p, i) =>
               producers.isLoading ? (
@@ -207,18 +210,18 @@ export function HomePage() {
                 </div>
               ) : (
                 <Link
-                  key={p.id}
-                  to={`/aziende/${p.slug}`}
+                  key={(p as Producer).id}
+                  to={`/aziende/${(p as Producer).slug}`}
                   className="focus-ring card-surface rounded-2xl p-6 block hover:bg-black/[0.02]"
                 >
                   <div className="font-serif text-2xl tracking-tighter2">
-                    {p.name}
+                    {(p as Producer).name}
                   </div>
                   <div className="mt-3 text-sm text-neutral-800 leading-relaxed">
-                    {p.philosophyShort}
+                    {(p as Producer).philosophyShort}
                   </div>
                 </Link>
-              )
+              ),
             )}
           </div>
         </Container>
