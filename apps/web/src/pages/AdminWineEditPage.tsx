@@ -116,7 +116,10 @@ export function AdminWineEditPage() {
 
     const parsed = FormSchema.safeParse(form);
     if (!parsed.success) {
-      setErr("Controlla i campi: alcuni valori non sono validi.");
+      const fields = parsed.error.issues
+        .map((i) => `${i.path.join(".")}: ${i.message}`)
+        .join("; ");
+      setErr(`Campi non validi: ${fields}`);
       return;
     }
 
@@ -172,7 +175,7 @@ export function AdminWineEditPage() {
   async function onDelete() {
     if (isNew) return;
     const ok = window.confirm(
-      "Eliminare questo vino? Questa azione non è reversibile."
+      "Eliminare questo vino? Questa azione non è reversibile.",
     );
     if (!ok) return;
 

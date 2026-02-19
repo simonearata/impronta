@@ -7,9 +7,12 @@ const API_URL = String(import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 async function fetchJson(path: string, init?: RequestInit) {
   if (!API_URL) throw new Error("VITE_API_URL mancante");
 
+  const hdrs: Record<string, string> = { ...((init?.headers as any) || {}) };
+  if (init?.body) hdrs["Content-Type"] = "application/json";
+
   const res = await fetch(`${API_URL}${path}`, {
-    headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
     ...init,
+    headers: hdrs,
   });
 
   const text = await res.text().catch(() => "");

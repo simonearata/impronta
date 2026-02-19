@@ -47,7 +47,7 @@ export function ZonesPage() {
 
   const countries = useMemo(
     () => uniqSorted((all.data || []).map((z) => z.country)),
-    [all.data]
+    [all.data],
   );
 
   const regions = useMemo(
@@ -55,9 +55,9 @@ export function ZonesPage() {
       uniqSorted(
         (all.data || [])
           .filter((z) => (country ? z.country === country : true))
-          .map((z) => z.region)
+          .map((z) => z.region),
       ),
-    [all.data, country]
+    [all.data, country],
   );
 
   function updateParam(key: string, value: string) {
@@ -172,7 +172,7 @@ export function ZonesPage() {
                     key={z.id}
                     to={`/zone/${z.slug}`}
                     className={cn(
-                      "focus-ring card-surface rounded-2xl p-6 block hover:bg-black/[0.02] transition"
+                      "focus-ring card-surface rounded-2xl p-6 block hover:bg-black/[0.02] transition",
                     )}
                   >
                     <div className="font-serif text-2xl tracking-tighter2">
@@ -181,7 +181,7 @@ export function ZonesPage() {
                     <div className="mt-1 text-xs text-neutral-600">
                       {z.country} · {z.region}
                     </div>
-                    <div className="mt-3 text-sm text-neutral-800 leading-relaxed">
+                    <div className="mt-3 text-sm text-neutral-800 leading-relaxed break-all">
                       {z.descriptionShort}
                     </div>
                   </Link>

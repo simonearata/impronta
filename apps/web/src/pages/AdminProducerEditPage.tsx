@@ -95,7 +95,10 @@ export function AdminProducerEditPage() {
     });
 
     if (!parsed.success) {
-      setErr("Controlla i campi: alcuni valori non sono validi.");
+      const fields = parsed.error.issues
+        .map((i) => `${i.path.join(".")}: ${i.message}`)
+        .join("; ");
+      setErr(`Campi non validi: ${fields}`);
       return;
     }
 
@@ -120,7 +123,7 @@ export function AdminProducerEditPage() {
   async function onDelete() {
     if (isNew) return;
     const ok = window.confirm(
-      "Eliminare questa azienda? Questa azione non è reversibile."
+      "Eliminare questa azienda? Questa azione non è reversibile.",
     );
     if (!ok) return;
 

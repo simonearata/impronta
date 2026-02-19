@@ -50,7 +50,10 @@ export function AdminHomeEditorPage() {
     setErr("");
     const parsed = HomeContentSchema.safeParse(form);
     if (!parsed.success) {
-      setErr("Controlla i campi: alcuni valori non sono validi.");
+      const fields = parsed.error.issues
+        .map((i) => `${i.path.join(".")}: ${i.message}`)
+        .join("; ");
+      setErr(`Campi non validi: ${fields}`);
       return;
     }
 
@@ -215,7 +218,7 @@ export function AdminHomeEditorPage() {
                           ...f,
                           featuredProducerIds: toggle(
                             f.featuredProducerIds,
-                            p.id
+                            p.id,
                           ),
                         }))
                       }

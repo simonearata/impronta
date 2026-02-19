@@ -7,5 +7,8 @@
     "build": "pnpm --filter @impronta/web build",
     "preview": "pnpm --filter @impronta/web preview",
     "typecheck": "pnpm --filter @impronta/web typecheck"
+  },
+  "dependencies": {
+    "@fastify/multipart": "^9.4.0"
   }
 }

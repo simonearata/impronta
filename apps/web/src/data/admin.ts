@@ -91,14 +91,20 @@ function slugTaken(
 }
 
 /* =========================
-   ZONES (MOCK ONLY)
+   ZONES
    ========================= */
 
 export async function adminListZones(): Promise<Zone[]> {
+  if (MODE === "api") {
+    return adminRequest(z.array(ZoneSchema), "/admin/zones");
+  }
   return readDb().zones;
 }
 
 export async function adminGetZone(id: string): Promise<Zone> {
+  if (MODE === "api") {
+    return adminRequest(ZoneSchema, `/admin/zones/${encodeURIComponent(id)}`);
+  }
   const z0 = readDb().zones.find((x) => x.id === id);
   if (!z0) throw new Error("Zona non trovata");
   return z0;
@@ -107,6 +113,26 @@ export async function adminGetZone(id: string): Promise<Zone> {
 export async function adminUpsertZone(
   input: Omit<Zone, "createdAt" | "updatedAt"> & { createdAt?: string },
 ): Promise<Zone> {
+  if (MODE === "api") {
+    const id = input.id || newId();
+    const body = {
+      name: input.name,
+      slug: input.slug,
+      country: input.country,
+      region: input.region,
+      descriptionShort: input.descriptionShort,
+      descriptionLong: input.descriptionLong,
+      coverImageUrl: input.coverImageUrl ?? null,
+    };
+    const result = await adminRequest(
+      ZoneSchema,
+      `/admin/zones/${encodeURIComponent(id)}`,
+      { method: "PUT", body: JSON.stringify(body) },
+    );
+    mutate("admin:zones");
+    return result;
+  }
+
   const db = readDb();
   const isNew = !input.id || !db.zones.some((z0) => z0.id === input.id);
   const id = isNew ? newId() : input.id;
@@ -136,6 +162,16 @@ export async function adminUpsertZone(
 }
 
 export async function adminDeleteZone(id: string): Promise<void> {
+  if (MODE === "api") {
+    await adminRequest(
+      z.object({ ok: z.literal(true) }),
+      `/admin/zones/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+    );
+    mutate("admin:zones");
+    return;
+  }
+
   const db = readDb();
   const hasProducers = db.producers.some((p) => p.zoneId === id);
   if (hasProducers)
@@ -148,14 +184,23 @@ export async function adminDeleteZone(id: string): Promise<void> {
 }
 
 /* =========================
-   PRODUCERS (MOCK ONLY)
+   PRODUCERS
    ========================= */
 
 export async function adminListProducers(): Promise<Producer[]> {
+  if (MODE === "api") {
+    return adminRequest(z.array(ProducerSchema), "/admin/producers");
+  }
   return readDb().producers;
 }
 
 export async function adminGetProducer(id: string): Promise<Producer> {
+  if (MODE === "api") {
+    return adminRequest(
+      ProducerSchema,
+      `/admin/producers/${encodeURIComponent(id)}`,
+    );
+  }
   const p = readDb().producers.find((x) => x.id === id);
   if (!p) throw new Error("Azienda non trovata");
   return p;
@@ -164,6 +209,28 @@ export async function adminGetProducer(id: string): Promise<Producer> {
 export async function adminUpsertProducer(
   input: Omit<Producer, "createdAt" | "updatedAt"> & { createdAt?: string },
 ): Promise<Producer> {
+  if (MODE === "api") {
+    const id = input.id || newId();
+    const body = {
+      zoneId: input.zoneId,
+      name: input.name,
+      slug: input.slug,
+      philosophyShort: input.philosophyShort,
+      storyLong: input.storyLong,
+      location: input.location ?? null,
+      website: input.website ?? null,
+      instagram: input.instagram ?? null,
+      coverImageUrl: input.coverImageUrl ?? null,
+    };
+    const result = await adminRequest(
+      ProducerSchema,
+      `/admin/producers/${encodeURIComponent(id)}`,
+      { method: "PUT", body: JSON.stringify(body) },
+    );
+    mutate("admin:producers");
+    return result;
+  }
+
   const db = readDb();
   const isNew = !input.id || !db.producers.some((p) => p.id === input.id);
   const id = isNew ? newId() : input.id;
@@ -171,7 +238,7 @@ export async function adminUpsertProducer(
   if (!db.zones.some((z0) => z0.id === input.zoneId))
     throw new Error("Zona non valida.");
   if (slugTaken(db.producers, input.slug, isNew ? undefined : id))
-    throw new Error("Slug già in uso per un’azienda.");
+    throw new Error("Slug già in uso per un'azienda.");
 
   const createdAt = isNew
     ? now()
@@ -198,6 +265,16 @@ export async function adminUpsertProducer(
 }
 
 export async function adminDeleteProducer(id: string): Promise<void> {
+  if (MODE === "api") {
+    await adminRequest(
+      z.object({ ok: z.literal(true) }),
+      `/admin/producers/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+    );
+    mutate("admin:producers");
+    return;
+  }
+
   const db = readDb();
   const hasWines = db.wines.some((w) => w.producerId === id);
   if (hasWines)
@@ -210,14 +287,20 @@ export async function adminDeleteProducer(id: string): Promise<void> {
 }
 
 /* =========================
-   WINES (MOCK ONLY)
+   WINES
    ========================= */
 
 export async function adminListWines(): Promise<Wine[]> {
+  if (MODE === "api") {
+    return adminRequest(z.array(WineSchema), "/admin/wines");
+  }
   return readDb().wines;
 }
 
 export async function adminGetWine(id: string): Promise<Wine> {
+  if (MODE === "api") {
+    return adminRequest(WineSchema, `/admin/wines/${encodeURIComponent(id)}`);
+  }
   const w = readDb().wines.find((x) => x.id === id);
   if (!w) throw new Error("Vino non trovato");
   return w;
@@ -226,6 +309,33 @@ export async function adminGetWine(id: string): Promise<Wine> {
 export async function adminUpsertWine(
   input: Omit<Wine, "createdAt" | "updatedAt"> & { createdAt?: string },
 ): Promise<Wine> {
+  if (MODE === "api") {
+    const id = input.id || newId();
+    const body = {
+      producerId: input.producerId,
+      name: input.name,
+      slug: input.slug,
+      vintage: input.vintage ?? null,
+      type: input.type,
+      grapes: input.grapes ?? null,
+      alcohol: input.alcohol ?? null,
+      vinification: input.vinification ?? null,
+      tastingNotes: input.tastingNotes ?? null,
+      pairing: input.pairing ?? null,
+      priceCents: input.priceCents ?? null,
+      isAvailable: !!input.isAvailable,
+      bottleSizeMl: input.bottleSizeMl ?? null,
+      imageUrl: input.imageUrl ?? null,
+    };
+    const result = await adminRequest(
+      WineSchema,
+      `/admin/wines/${encodeURIComponent(id)}`,
+      { method: "PUT", body: JSON.stringify(body) },
+    );
+    mutate("admin:wines");
+    return result;
+  }
+
   const db = readDb();
   const isNew = !input.id || !db.wines.some((w) => w.id === input.id);
   const id = isNew ? newId() : input.id;
@@ -268,22 +378,45 @@ export async function adminUpsertWine(
 }
 
 export async function adminDeleteWine(id: string): Promise<void> {
+  if (MODE === "api") {
+    await adminRequest(
+      z.object({ ok: z.literal(true) }),
+      `/admin/wines/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+    );
+    mutate("admin:wines");
+    return;
+  }
+
   const db = readDb();
   writeDb({ ...db, wines: db.wines.filter((x) => x.id !== id) });
   mutate("admin:wines");
 }
 
 /* =========================
-   HOME (MOCK ONLY)
+   HOME
    ========================= */
 
 export async function adminGetHome(): Promise<HomeContent> {
+  if (MODE === "api") {
+    return adminRequest(HomeContentSchema, "/admin/home");
+  }
   return readDb().home;
 }
 
 export async function adminUpdateHome(
   input: HomeContent,
 ): Promise<HomeContent> {
+  if (MODE === "api") {
+    const result = await adminRequest(HomeContentSchema, "/admin/home", {
+      method: "PUT",
+      body: JSON.stringify(input),
+    });
+    mutate("admin:home");
+    mutate("home");
+    return result;
+  }
+
   const db = readDb();
   const next = HomeContentSchema.parse(input);
   writeDb({ ...db, home: next });

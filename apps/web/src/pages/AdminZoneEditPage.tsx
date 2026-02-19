@@ -69,7 +69,12 @@ export function AdminZoneEditPage() {
     setErr("");
     const parsed = FormSchema.safeParse(form);
     if (!parsed.success) {
-      setErr("Controlla i campi: alcuni valori non sono validi.");
+      const fields = parsed.error.issues
+        .map((i) => i.path.join("."))
+        .join(", ");
+      setErr(
+        `Campi non validi: ${fields}. Controlla lunghezze minime (nome ≥2, slug ≥2, paese ≥2, regione ≥2, desc. breve ≥10, desc. estesa ≥20).`,
+      );
       return;
     }
 
@@ -91,7 +96,7 @@ export function AdminZoneEditPage() {
   async function onDelete() {
     if (isNew) return;
     const ok = window.confirm(
-      "Eliminare questa zona? Questa azione non è reversibile."
+      "Eliminare questa zona? Questa azione non è reversibile.",
     );
     if (!ok) return;
 

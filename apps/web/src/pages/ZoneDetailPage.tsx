@@ -61,7 +61,15 @@ export function ZoneDetailPage() {
           ) : (
             <div className="mt-8">
               <div className="relative overflow-hidden rounded-2xl card-surface">
-                <div className="h-44 sm:h-56 w-full bg-gradient-to-b from-black/10 to-black/0" />
+                <div className="h-44 sm:h-56 w-full bg-gradient-to-b from-black/10 to-black/0 overflow-hidden">
+                  {zone.coverImageUrl ? (
+                    <img
+                      src={zone.coverImageUrl}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  ) : null}
+                </div>
                 <div className="p-8 sm:p-10">
                   <div className="text-xs text-neutral-600 tracking-wide">
                     {zone.country} · {zone.region}
@@ -105,7 +113,7 @@ export function ZoneDetailPage() {
                         key={p.id}
                         to={`/aziende/${p.slug}`}
                         className={cn(
-                          "focus-ring card-surface rounded-2xl p-6 block hover:bg-black/[0.02] transition"
+                          "focus-ring card-surface rounded-2xl p-6 block hover:bg-black/[0.02] transition",
                         )}
                       >
                         <div className="font-serif text-2xl tracking-tighter2">

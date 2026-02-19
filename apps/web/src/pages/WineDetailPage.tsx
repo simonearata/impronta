@@ -86,48 +86,61 @@ export function WineDetailPage() {
             <div className="mt-8 grid gap-6 lg:grid-cols-5">
               <div className="lg:col-span-3">
                 <div className="card-surface rounded-2xl overflow-hidden">
-                  <div className="h-44 sm:h-56 w-full bg-gradient-to-b from-black/10 to-black/0" />
-                  <div className="p-8 sm:p-10">
-                    <div className="text-xs text-neutral-600 tracking-wide">
-                      <Link
-                        className="focus-ring rounded hover:text-neutral-900"
-                        to={`/aziende/${producer.slug}`}
-                      >
-                        {producer.name}
-                      </Link>
-                      {" · "}
-                      <Link
-                        className="focus-ring rounded hover:text-neutral-900"
-                        to={`/zone/${zone.slug}`}
-                      >
-                        {zone.name}
-                      </Link>
+                  <div className="grid sm:grid-cols-[240px_1fr] lg:grid-cols-[280px_1fr]">
+                    <div className="flex items-center justify-center bg-gradient-to-b from-black/[0.04] to-black/[0.01] p-6 sm:p-8">
+                      {wine.imageUrl ? (
+                        <img
+                          src={wine.imageUrl}
+                          alt={wine.name}
+                          className="max-h-[360px] w-auto object-contain drop-shadow-lg"
+                        />
+                      ) : (
+                        <div className="h-[280px] w-24 rounded-xl bg-black/[0.06]" />
+                      )}
                     </div>
 
-                    <h1 className="mt-2 font-serif text-4xl tracking-tighter2">
-                      {wine.name}
-                    </h1>
+                    <div className="p-8 sm:p-10 flex flex-col justify-center">
+                      <div className="text-xs text-neutral-600 tracking-wide">
+                        <Link
+                          className="focus-ring rounded hover:text-neutral-900"
+                          to={`/aziende/${producer.slug}`}
+                        >
+                          {producer.name}
+                        </Link>
+                        {" · "}
+                        <Link
+                          className="focus-ring rounded hover:text-neutral-900"
+                          to={`/zone/${zone.slug}`}
+                        >
+                          {zone.name}
+                        </Link>
+                      </div>
 
-                    <div className="mt-4 text-sm text-neutral-800 leading-relaxed max-w-2xl">
-                      {wine.tastingNotes || "Note in aggiornamento."}
-                    </div>
+                      <h1 className="mt-2 font-serif text-4xl tracking-tighter2">
+                        {wine.name}
+                      </h1>
 
-                    <div className="mt-8 flex flex-wrap gap-3">
-                      <Link
-                        className="focus-ring rounded-full px-4 py-2 text-sm border border-black/10 bg-black/5"
-                        to={contactHref}
-                        aria-label="Contattaci per questo vino"
-                      >
-                        Contattaci per questo vino
-                      </Link>
+                      <div className="mt-4 text-sm text-neutral-800 leading-relaxed max-w-2xl">
+                        {wine.tastingNotes || "Note in aggiornamento."}
+                      </div>
 
-                      <Link
-                        className="focus-ring rounded-full px-4 py-2 text-sm border border-black/10 bg-black/5"
-                        to="/vini"
-                        aria-label="Torna ai vini"
-                      >
-                        Torna ai vini
-                      </Link>
+                      <div className="mt-8 flex flex-wrap gap-3">
+                        <Link
+                          className="focus-ring rounded-full px-4 py-2 text-sm border border-black/10 bg-black/5"
+                          to={contactHref}
+                          aria-label="Contattaci per questo vino"
+                        >
+                          Contattaci per questo vino
+                        </Link>
+
+                        <Link
+                          className="focus-ring rounded-full px-4 py-2 text-sm border border-black/10 bg-black/5"
+                          to="/vini"
+                          aria-label="Torna ai vini"
+                        >
+                          Torna ai vini
+                        </Link>
+                      </div>
                     </div>
                   </div>
                 </div>

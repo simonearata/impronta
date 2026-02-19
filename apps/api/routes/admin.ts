@@ -1,9 +1,29 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
+import { writeFile, mkdir } from "node:fs/promises";
+import { resolve, extname } from "node:path";
 import { prisma } from "../src/prisma.js";
-import { OkSchema, SiteSettingsSchema } from "../src/schemas.js";
-import { settingsOut } from "../src/serializers.js";
+import {
+  HomeContentSchema,
+  OkSchema,
+  ProducerSchema,
+  SiteSettingsSchema,
+  WineSchema,
+  WineTypeSchema,
+  ZoneSchema,
+} from "../src/schemas.js";
+import {
+  homeOut,
+  producerOut,
+  settingsOut,
+  wineOut,
+  zoneOut,
+} from "../src/serializers.js";
+
+/* ────────────────────────────────────────
+   AUTH (in-memory sessions)
+   ──────────────────────────────────────── */
 
 const AdminLoginSchema = z.object({
   email: z.string().email(),
@@ -48,7 +68,58 @@ function requireAdmin(req: any) {
   return token;
 }
 
+/* ────────────────────────────────────────
+   INPUT SCHEMAS (for PUT/upsert bodies)
+   ──────────────────────────────────────── */
+
+const ZoneInputSchema = z.object({
+  name: z.string().min(1),
+  slug: z.string().min(1),
+  country: z.string().min(1),
+  region: z.string().min(1),
+  descriptionShort: z.string(),
+  descriptionLong: z.string(),
+  coverImageUrl: z.string().nullable().optional(),
+});
+
+const ProducerInputSchema = z.object({
+  zoneId: z.string().min(1),
+  name: z.string().min(1),
+  slug: z.string().min(1),
+  philosophyShort: z.string(),
+  storyLong: z.string(),
+  location: z.string().nullable().optional(),
+  website: z.string().nullable().optional(),
+  instagram: z.string().nullable().optional(),
+  coverImageUrl: z.string().nullable().optional(),
+});
+
+const WineInputSchema = z.object({
+  producerId: z.string().min(1),
+  name: z.string().min(1),
+  slug: z.string().min(1),
+  vintage: z.number().int().nullable().optional(),
+  type: WineTypeSchema,
+  grapes: z.string().nullable().optional(),
+  alcohol: z.string().nullable().optional(),
+  vinification: z.string().nullable().optional(),
+  tastingNotes: z.string().nullable().optional(),
+  pairing: z.string().nullable().optional(),
+  priceCents: z.number().int().nullable().optional(),
+  isAvailable: z.boolean().optional().default(true),
+  bottleSizeMl: z.number().int().nullable().optional(),
+  imageUrl: z.string().nullable().optional(),
+});
+
+const IdParamSchema = z.object({ id: z.string().min(1) });
+
+/* ────────────────────────────────────────
+   ROUTES
+   ──────────────────────────────────────── */
+
 export async function adminRoutes(app: FastifyInstance) {
+  /* ── AUTH ────────────────────────────── */
+
   app.post("/admin/login", async (req, reply) => {
     const body = AdminLoginSchema.parse((req as any).body);
 
@@ -97,6 +168,8 @@ export async function adminRoutes(app: FastifyInstance) {
     return OkSchema.parse({ ok: true });
   });
 
+  /* ── SETTINGS ───────────────────────── */
+
   app.get("/admin/settings", async (req) => {
     requireAdmin(req);
 
@@ -111,7 +184,7 @@ export async function adminRoutes(app: FastifyInstance) {
 
     const payload = SiteSettingsSchema.parse((req as any).body);
 
-    await prisma.siteSettings.upsert({
+    const row = await prisma.siteSettings.upsert({
       where: { id: 1 },
       create: {
         id: 1,
@@ -130,8 +203,10 @@ export async function adminRoutes(app: FastifyInstance) {
       },
     });
 
-    return OkSchema.parse({ ok: true });
+    return SiteSettingsSchema.parse(settingsOut(row));
   });
+
+  /* ── CONTACT LEADS ──────────────────── */
 
   app.get("/admin/contact-leads", async (req) => {
     requireAdmin(req);
@@ -152,5 +227,374 @@ export async function adminRoutes(app: FastifyInstance) {
         createdAt: r.createdAt.toISOString(),
       })),
     );
+  });
+
+  /* ── ZONES ──────────────────────────── */
+
+  app.get("/admin/zones", async (req) => {
+    requireAdmin(req);
+    const rows = await prisma.zone.findMany({ orderBy: { name: "asc" } });
+    return z.array(ZoneSchema).parse(rows.map(zoneOut));
+  });
+
+  app.get("/admin/zones/:id", async (req, reply) => {
+    requireAdmin(req);
+    const { id } = IdParamSchema.parse((req as any).params);
+
+    const row = await prisma.zone.findUnique({ where: { id } });
+    if (!row)
+      return reply.code(404).send({ ok: false, message: "Zona non trovata" });
+
+    return ZoneSchema.parse(zoneOut(row));
+  });
+
+  app.put("/admin/zones/:id", async (req) => {
+    requireAdmin(req);
+    const { id } = IdParamSchema.parse((req as any).params);
+    const input = ZoneInputSchema.parse((req as any).body);
+
+    // Check slug uniqueness
+    const slugConflict = await prisma.zone.findUnique({
+      where: { slug: input.slug },
+    });
+    if (slugConflict && slugConflict.id !== id) {
+      const err: any = new Error("Slug già in uso per una zona.");
+      err.statusCode = 409;
+      throw err;
+    }
+
+    const row = await prisma.zone.upsert({
+      where: { id },
+      create: {
+        id,
+        name: input.name,
+        slug: input.slug,
+        country: input.country,
+        region: input.region,
+        descriptionShort: input.descriptionShort,
+        descriptionLong: input.descriptionLong,
+        coverImageUrl: input.coverImageUrl ?? null,
+      },
+      update: {
+        name: input.name,
+        slug: input.slug,
+        country: input.country,
+        region: input.region,
+        descriptionShort: input.descriptionShort,
+        descriptionLong: input.descriptionLong,
+        coverImageUrl: input.coverImageUrl ?? null,
+      },
+    });
+
+    return ZoneSchema.parse(zoneOut(row));
+  });
+
+  app.delete("/admin/zones/:id", async (req, reply) => {
+    requireAdmin(req);
+    const { id } = IdParamSchema.parse((req as any).params);
+
+    const existing = await prisma.zone.findUnique({ where: { id } });
+    if (!existing)
+      return reply.code(404).send({ ok: false, message: "Zona non trovata" });
+
+    const producerCount = await prisma.producer.count({
+      where: { zoneId: id },
+    });
+    if (producerCount > 0) {
+      const err: any = new Error(
+        "Impossibile eliminare: esistono aziende collegate a questa zona.",
+      );
+      err.statusCode = 409;
+      throw err;
+    }
+
+    await prisma.zone.delete({ where: { id } });
+    return OkSchema.parse({ ok: true });
+  });
+
+  /* ── PRODUCERS ──────────────────────── */
+
+  app.get("/admin/producers", async (req) => {
+    requireAdmin(req);
+    const rows = await prisma.producer.findMany({ orderBy: { name: "asc" } });
+    return z.array(ProducerSchema).parse(rows.map(producerOut));
+  });
+
+  app.get("/admin/producers/:id", async (req, reply) => {
+    requireAdmin(req);
+    const { id } = IdParamSchema.parse((req as any).params);
+
+    const row = await prisma.producer.findUnique({ where: { id } });
+    if (!row)
+      return reply
+        .code(404)
+        .send({ ok: false, message: "Azienda non trovata" });
+
+    return ProducerSchema.parse(producerOut(row));
+  });
+
+  app.put("/admin/producers/:id", async (req) => {
+    requireAdmin(req);
+    const { id } = IdParamSchema.parse((req as any).params);
+    const input = ProducerInputSchema.parse((req as any).body);
+
+    const zone = await prisma.zone.findUnique({ where: { id: input.zoneId } });
+    if (!zone) {
+      const err: any = new Error("Zona non valida.");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const slugConflict = await prisma.producer.findUnique({
+      where: { slug: input.slug },
+    });
+    if (slugConflict && slugConflict.id !== id) {
+      const err: any = new Error("Slug già in uso per un'azienda.");
+      err.statusCode = 409;
+      throw err;
+    }
+
+    const row = await prisma.producer.upsert({
+      where: { id },
+      create: {
+        id,
+        zoneId: input.zoneId,
+        name: input.name,
+        slug: input.slug,
+        philosophyShort: input.philosophyShort,
+        storyLong: input.storyLong,
+        location: input.location ?? null,
+        website: input.website ?? null,
+        instagram: input.instagram ?? null,
+        coverImageUrl: input.coverImageUrl ?? null,
+      },
+      update: {
+        zoneId: input.zoneId,
+        name: input.name,
+        slug: input.slug,
+        philosophyShort: input.philosophyShort,
+        storyLong: input.storyLong,
+        location: input.location ?? null,
+        website: input.website ?? null,
+        instagram: input.instagram ?? null,
+        coverImageUrl: input.coverImageUrl ?? null,
+      },
+    });
+
+    return ProducerSchema.parse(producerOut(row));
+  });
+
+  app.delete("/admin/producers/:id", async (req, reply) => {
+    requireAdmin(req);
+    const { id } = IdParamSchema.parse((req as any).params);
+
+    const existing = await prisma.producer.findUnique({ where: { id } });
+    if (!existing)
+      return reply
+        .code(404)
+        .send({ ok: false, message: "Azienda non trovata" });
+
+    const wineCount = await prisma.wine.count({ where: { producerId: id } });
+    if (wineCount > 0) {
+      const err: any = new Error(
+        "Impossibile eliminare: esistono vini collegati a questa azienda.",
+      );
+      err.statusCode = 409;
+      throw err;
+    }
+
+    await prisma.producer.delete({ where: { id } });
+    return OkSchema.parse({ ok: true });
+  });
+
+  /* ── WINES ──────────────────────────── */
+
+  app.get("/admin/wines", async (req) => {
+    requireAdmin(req);
+    const rows = await prisma.wine.findMany({
+      orderBy: [{ isAvailable: "desc" }, { name: "asc" }],
+    });
+    return z.array(WineSchema).parse(rows.map(wineOut));
+  });
+
+  app.get("/admin/wines/:id", async (req, reply) => {
+    requireAdmin(req);
+    const { id } = IdParamSchema.parse((req as any).params);
+
+    const row = await prisma.wine.findUnique({ where: { id } });
+    if (!row)
+      return reply.code(404).send({ ok: false, message: "Vino non trovato" });
+
+    return WineSchema.parse(wineOut(row));
+  });
+
+  app.put("/admin/wines/:id", async (req) => {
+    requireAdmin(req);
+    const { id } = IdParamSchema.parse((req as any).params);
+    const input = WineInputSchema.parse((req as any).body);
+
+    const producer = await prisma.producer.findUnique({
+      where: { id: input.producerId },
+    });
+    if (!producer) {
+      const err: any = new Error("Azienda non valida.");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const slugConflict = await prisma.wine.findUnique({
+      where: { slug: input.slug },
+    });
+    if (slugConflict && slugConflict.id !== id) {
+      const err: any = new Error("Slug già in uso per un vino.");
+      err.statusCode = 409;
+      throw err;
+    }
+
+    const row = await prisma.wine.upsert({
+      where: { id },
+      create: {
+        id,
+        producerId: input.producerId,
+        name: input.name,
+        slug: input.slug,
+        vintage: input.vintage ?? null,
+        type: input.type,
+        grapes: input.grapes ?? null,
+        alcohol: input.alcohol ?? null,
+        vinification: input.vinification ?? null,
+        tastingNotes: input.tastingNotes ?? null,
+        pairing: input.pairing ?? null,
+        priceCents: input.priceCents ?? null,
+        isAvailable: input.isAvailable,
+        bottleSizeMl: input.bottleSizeMl ?? null,
+        imageUrl: input.imageUrl ?? null,
+      },
+      update: {
+        producerId: input.producerId,
+        name: input.name,
+        slug: input.slug,
+        vintage: input.vintage ?? null,
+        type: input.type,
+        grapes: input.grapes ?? null,
+        alcohol: input.alcohol ?? null,
+        vinification: input.vinification ?? null,
+        tastingNotes: input.tastingNotes ?? null,
+        pairing: input.pairing ?? null,
+        priceCents: input.priceCents ?? null,
+        isAvailable: input.isAvailable,
+        bottleSizeMl: input.bottleSizeMl ?? null,
+        imageUrl: input.imageUrl ?? null,
+      },
+    });
+
+    return WineSchema.parse(wineOut(row));
+  });
+
+  app.delete("/admin/wines/:id", async (req, reply) => {
+    requireAdmin(req);
+    const { id } = IdParamSchema.parse((req as any).params);
+
+    const existing = await prisma.wine.findUnique({ where: { id } });
+    if (!existing)
+      return reply.code(404).send({ ok: false, message: "Vino non trovato" });
+
+    await prisma.wine.delete({ where: { id } });
+    return OkSchema.parse({ ok: true });
+  });
+
+  /* ── HOME CONTENT ───────────────────── */
+
+  app.get("/admin/home", async (req) => {
+    requireAdmin(req);
+
+    const row = await prisma.homeContent.findUnique({ where: { id: 1 } });
+    if (!row) throw new Error("HomeContent mancante");
+
+    return HomeContentSchema.parse(homeOut(row));
+  });
+
+  app.put("/admin/home", async (req) => {
+    requireAdmin(req);
+
+    const payload = HomeContentSchema.parse((req as any).body);
+
+    await prisma.homeContent.upsert({
+      where: { id: 1 },
+      create: {
+        id: 1,
+        heroImageUrl: payload.heroImageUrl,
+        heroQuote: payload.heroQuote,
+        story: payload.story,
+        vision: payload.vision,
+        mission: payload.mission,
+        featuredZoneIds: payload.featuredZoneIds,
+        featuredProducerIds: payload.featuredProducerIds,
+      },
+      update: {
+        heroImageUrl: payload.heroImageUrl,
+        heroQuote: payload.heroQuote,
+        story: payload.story,
+        vision: payload.vision,
+        mission: payload.mission,
+        featuredZoneIds: payload.featuredZoneIds,
+        featuredProducerIds: payload.featuredProducerIds,
+      },
+    });
+
+    return HomeContentSchema.parse(payload);
+  });
+
+  /* ── UPLOAD IMMAGINI ────────────────── */
+
+  const ALLOWED_MIME = new Set([
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+    "image/avif",
+  ]);
+
+  const EXT_MAP: Record<string, string> = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+    "image/gif": ".gif",
+    "image/avif": ".avif",
+  };
+
+  app.post("/admin/upload", async (req, reply) => {
+    requireAdmin(req);
+
+    const file = await (req as any).file();
+    if (!file) {
+      return reply
+        .code(400)
+        .send({ ok: false, message: "Nessun file inviato." });
+    }
+
+    const mime = file.mimetype;
+    if (!ALLOWED_MIME.has(mime)) {
+      return reply.code(400).send({
+        ok: false,
+        message: `Tipo file non supportato: ${mime}. Usa JPEG, PNG, WebP, GIF o AVIF.`,
+      });
+    }
+
+    const ext = EXT_MAP[mime] || ".bin";
+    const filename = `${randomUUID()}${ext}`;
+
+    const uploadDir = resolve(process.env.UPLOAD_DIR || "./uploads");
+    await mkdir(uploadDir, { recursive: true });
+
+    const buf = await file.toBuffer();
+    await writeFile(resolve(uploadDir, filename), buf);
+
+    const baseUrl = (
+      process.env.PUBLIC_UPLOAD_BASE_URL || "http://localhost:3001/uploads"
+    ).replace(/\/$/, "");
+    const url = `${baseUrl}/${filename}`;
+
+    return { ok: true, url };
   });
 }

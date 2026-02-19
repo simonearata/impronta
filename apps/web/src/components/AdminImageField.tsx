@@ -1,5 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { cn } from "../shared/utils";
+import { DATA_SOURCE, API_URL } from "../data/config";
+import { readSession } from "../auth/storage";
 
 type Props = {
   label: string;
@@ -10,6 +12,7 @@ type Props = {
 export function AdminImageField({ label, value, onChange }: Props) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
 
   const preview = useMemo(() => {
     if (!value) return null;
@@ -18,14 +21,45 @@ export function AdminImageField({ label, value, onChange }: Props) {
 
   async function onPick(file: File) {
     setBusy(true);
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const fr = new FileReader();
-      fr.onload = () => resolve(String(fr.result));
-      fr.onerror = () => reject(new Error("Errore lettura file"));
-      fr.readAsDataURL(file);
-    });
-    onChange(dataUrl);
-    setBusy(false);
+    setErr("");
+
+    try {
+      if (DATA_SOURCE === "api") {
+        // Upload via API
+        const session = readSession();
+        if (!session?.accessToken) throw new Error("Non autenticato");
+
+        const form = new FormData();
+        form.append("file", file);
+
+        const res = await fetch(`${API_URL}/admin/upload`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${session.accessToken}` },
+          body: form,
+        });
+
+        if (!res.ok) {
+          const body = await res.json().catch(() => null);
+          throw new Error(body?.message || `Upload fallito: ${res.status}`);
+        }
+
+        const json = await res.json();
+        onChange(json.url);
+      } else {
+        // Mock: data-URL in localStorage
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const fr = new FileReader();
+          fr.onload = () => resolve(String(fr.result));
+          fr.onerror = () => reject(new Error("Errore lettura file"));
+          fr.readAsDataURL(file);
+        });
+        onChange(dataUrl);
+      }
+    } catch (e) {
+      setErr(String((e as Error).message || e));
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -36,7 +70,7 @@ export function AdminImageField({ label, value, onChange }: Props) {
         <div
           className={cn(
             "card-surface rounded-2xl overflow-hidden border border-black/10",
-            preview ? "" : "bg-gradient-to-b from-black/10 to-black/0"
+            preview ? "" : "bg-gradient-to-b from-black/10 to-black/0",
           )}
           style={{ width: 160, height: 120 }}
         >
@@ -81,10 +115,13 @@ export function AdminImageField({ label, value, onChange }: Props) {
             }}
           />
 
-          <div className="text-xs text-neutral-600">
-            In mock salviamo una data-URL in localStorage. In prod useremo
-            upload su API + storage.
-          </div>
+          {err ? (
+            <div className="text-xs text-red-600">{err}</div>
+          ) : (
+            <div className="text-xs text-neutral-600">
+              Max 5 MB. Formati: JPEG, PNG, WebP, GIF, AVIF.
+            </div>
+          )}
         </div>
       </div>
     </div>

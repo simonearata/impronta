@@ -1,5 +1,6 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import multipart from "@fastify/multipart";
 import statik from "@fastify/static";
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -24,6 +25,10 @@ export async function buildServer(env: Env) {
   await app.register(cors, {
     origin: env.CORS_ORIGIN,
     credentials: true,
+  });
+
+  await app.register(multipart, {
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max
   });
 
   const uploadDirAbs = resolve(env.UPLOAD_DIR);

@@ -38,7 +38,15 @@ export function HomePage() {
     <>
       <Meta title="Home" path="/" />
       <section className="relative">
-        <div className="h-[72vh] min-h-[520px] w-full bg-gradient-to-b from-black/10 to-black/0" />
+        <div className="h-[72vh] min-h-[520px] w-full bg-gradient-to-b from-black/10 to-black/0 overflow-hidden">
+          {home.data?.heroImageUrl ? (
+            <img
+              src={home.data.heroImageUrl}
+              alt=""
+              className="w-full h-full object-cover"
+            />
+          ) : null}
+        </div>
         <div className="absolute inset-0">
           <Container className="h-full flex items-end pb-10">
             <div className="max-w-2xl">
