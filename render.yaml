@@ -4,7 +4,7 @@
 
 databases:
   - name: impronta-db
-    plan: free
+    plan: starter
     databaseName: impronta
     user: impronta
 
@@ -13,7 +13,7 @@ services:
   - type: web
     name: impronta-api
     runtime: node
-    plan: free
+    plan: starter
     rootDir: apps/api
     buildCommand: |
       npm install -g pnpm &&
@@ -48,7 +48,7 @@ services:
   - type: web
     name: impronta-web
     runtime: static
-    plan: free
+    plan: starter
     rootDir: apps/web
     buildCommand: |
       npm install -g pnpm &&
