@@ -1,0 +1,76 @@
+# render.yaml — Blueprint per deploy Impronta su Render
+# Metti questo file nella ROOT del repo, poi su Render:
+# New > Blueprint > seleziona il repo > applica
+
+databases:
+  - name: impronta-db
+    plan: free
+    databaseName: impronta
+    user: impronta
+
+services:
+  # --- API (Fastify + Prisma) ---
+  - type: web
+    name: impronta-api
+    runtime: node
+    plan: free
+    rootDir: apps/api
+    buildCommand: |
+      npm install -g pnpm &&
+      pnpm install &&
+      pnpm db:generate &&
+      pnpm build
+    startCommand: |
+      npx prisma migrate deploy &&
+      npx prisma db seed &&
+      node dist/index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3001"
+      - key: CORS_ORIGIN
+        value: CAMBIA_DOPO_DEPLOY
+      - key: DATABASE_URL
+        fromDatabase:
+          name: impronta-db
+          property: connectionString
+      - key: UPLOAD_DIR
+        value: ./uploads
+      - key: PUBLIC_UPLOAD_BASE_URL
+        value: CAMBIA_DOPO_DEPLOY
+      - key: ADMIN_EMAIL
+        value: admin@impronta.local
+      - key: ADMIN_PASSWORD
+        value: admin123
+
+  # --- Frontend (Vite static) ---
+  - type: web
+    name: impronta-web
+    runtime: static
+    plan: free
+    rootDir: apps/web
+    buildCommand: |
+      npm install -g pnpm &&
+      pnpm install &&
+      pnpm build
+    staticPublishPath: dist
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: public, max-age=0, must-revalidate
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_DATA_SOURCE
+        value: api
+      - key: VITE_API_URL
+        value: CAMBIA_DOPO_DEPLOY
+      - key: VITE_SITE_URL
+        value: CAMBIA_DOPO_DEPLOY
+      - key: VITE_ADMIN_EMAIL
+        value: admin@impronta.local
+      - key: VITE_ADMIN_PASSWORD
+        value: admin123
