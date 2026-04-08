@@ -42,13 +42,13 @@ export function Footer() {
             <div className="mt-2 flex flex-col gap-2 text-sm">
               <a
                 className="focus-ring rounded hover:text-neutral-900 text-neutral-800"
-                href="#"
+                href="/privacy"
               >
                 Privacy
               </a>
               <a
                 className="focus-ring rounded hover:text-neutral-900 text-neutral-800"
-                href="#"
+                href="/privacy"
               >
                 Cookie
               </a>

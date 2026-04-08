@@ -83,14 +83,7 @@ export async function listZones(params: ListZonesParams): Promise<Zone[]> {
   const out = db.zones.filter((z0) => {
     if (params.country && z0.country !== params.country) return false;
     if (params.region && z0.region !== params.region) return false;
-    if (
-      q &&
-      !includesQ(
-        `${z0.name} ${z0.country} ${z0.region} ${z0.descriptionShort}`,
-        q
-      )
-    )
-      return false;
+    if (q && !includesQ(z0.name, q)) return false;
     return true;
   });
 
@@ -110,7 +103,7 @@ export async function getZoneDetail(slug: string): Promise<ZoneDetail> {
 }
 
 export async function listProducers(
-  params: ListProducersParams
+  params: ListProducersParams,
 ): Promise<Producer[]> {
   if (DATA_SOURCE === "api") {
     const qs = new URLSearchParams();
@@ -128,8 +121,7 @@ export async function listProducers(
 
   const out = db.producers.filter((p) => {
     if (zoneId && p.zoneId !== zoneId) return false;
-    if (q && !includesQ(`${p.name} ${p.philosophyShort} ${p.storyLong}`, q))
-      return false;
+    if (q && !includesQ(p.name, q)) return false;
     return true;
   });
 
@@ -140,7 +132,7 @@ export async function getProducerDetail(slug: string): Promise<ProducerDetail> {
   if (DATA_SOURCE === "api")
     return apiRequest(
       ProducerDetailSchema,
-      `/producers/${encodeURIComponent(slug)}`
+      `/producers/${encodeURIComponent(slug)}`,
     );
 
   await delay(220);
@@ -191,16 +183,7 @@ export async function listWines(params: ListWinesParams): Promise<Wine[]> {
       if ((w.vintage || null) !== v) return false;
     }
 
-    if (
-      q &&
-      !includesQ(
-        `${w.name} ${w.grapes || ""} ${w.tastingNotes || ""} ${
-          w.vinification || ""
-        }`,
-        q
-      )
-    )
-      return false;
+    if (q && !includesQ(w.name, q)) return false;
 
     return true;
   });

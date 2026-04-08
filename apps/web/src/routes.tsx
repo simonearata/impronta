@@ -3,6 +3,7 @@ import { SiteLayout } from "./layouts/SiteLayout";
 import { ContactPage } from "./pages/ContactPage";
 import { HomePage } from "./pages/HomePage";
 import { NotFoundPage } from "./pages/NotFoundPage";
+import { PrivacyPage } from "./pages/PrivacyPage";
 import { ProducerDetailPage } from "./pages/ProducerDetailPage";
 import { ProducersPage } from "./pages/ProducersPage";
 import { WineDetailPage } from "./pages/WineDetailPage";
@@ -10,6 +11,7 @@ import { WinesPage } from "./pages/WinesPage";
 import { ZoneDetailPage } from "./pages/ZoneDetailPage";
 import { ZonesPage } from "./pages/ZonesPage";
 import { AdminLoginPage } from "./pages/AdminLoginPage";
+import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { AdminShell } from "./components/AdminShell";
 import { AdminDashboardPage } from "./pages/AdminDashboardPage";
 import { AdminZonesListPage } from "./pages/AdminZonesListPage";
@@ -24,6 +26,7 @@ import { RequireAdmin } from "./auth/RequireAdmin";
 
 export const router = createBrowserRouter([
   { path: "/admin/login", element: <AdminLoginPage /> },
+  { path: "/admin/reset-password", element: <ResetPasswordPage /> },
   {
     path: "/admin",
     element: (
@@ -55,6 +58,7 @@ export const router = createBrowserRouter([
       { path: "/vini", element: <WinesPage /> },
       { path: "/vini/:slug", element: <WineDetailPage /> },
       { path: "/contatti", element: <ContactPage /> },
+      { path: "/privacy", element: <PrivacyPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },

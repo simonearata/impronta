@@ -1,16 +1,21 @@
-@import "@fontsource/inter/latin-400.css";
-@import "@fontsource/inter/latin-500.css";
-@import "@fontsource/cormorant-garamond/latin-400.css";
-@import "@fontsource/cormorant-garamond/latin-600.css";
-
 @import "tailwindcss";
 
+/* ───────────────────────────────────────────
+   PALETTE  Impronta Wine Dealer
+   sand   #e4d5b7  → 228 213 183
+   black  #000000  → 0 0 0
+   teal   #588b8b  → 88 139 139
+   ─────────────────────────────────────────── */
+
 :root {
-  --bg: 245 243 238;
-  --fg: 16 16 16;
-  --muted: 88 88 88;
-  --card: 252 251 248;
-  --line: 220 220 220;
+  --bg: 245 241 232;
+  --fg: 0 0 0;
+  --muted: 100 95 85;
+  --card: 252 249 242;
+  --line: 228 213 183;
+
+  --accent: 88 139 139;
+  --sand: 228 213 183;
 }
 
 html,
@@ -21,23 +26,307 @@ body {
 body {
   background: rgb(var(--bg));
   color: rgb(var(--fg));
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI",
-    sans-serif;
+  font-family: "Courier New", Courier, monospace;
 }
 
 ::selection {
-  background: rgba(16, 16, 16, 0.12);
+  background: rgba(88, 139, 139, 0.25);
 }
 
 a {
   color: inherit;
 }
 
+/* ── Focus ring → teal ────────────────────── */
 .focus-ring {
-  @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:ring-offset-2 focus-visible:ring-offset-[rgb(var(--bg))];
+  @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2;
+  --tw-ring-color: rgb(var(--accent));
+  --tw-ring-offset-color: rgb(var(--bg));
 }
 
+/* ── Card surface → sand border ───────────── */
 .card-surface {
   background: rgb(var(--card));
-  border: 1px solid rgb(var(--line));
+  border: 1px solid rgba(228, 213, 183, 0.8);
+}
+
+/* ── Serif headings → Courier New bold ────── */
+.font-serif {
+  font-family: "Courier New", Courier, monospace !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+/* ── Primary buttons → black ──────────────── */
+button.bg-neutral-900,
+a.bg-neutral-900 {
+  background-color: #000 !important;
+  color: rgb(var(--sand)) !important;
+  font-family: "Courier New", Courier, monospace !important;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+button.bg-neutral-900:hover,
+a.bg-neutral-900:hover {
+  background-color: rgb(var(--accent)) !important;
+  color: #fff !important;
+}
+button.bg-neutral-900:disabled {
+  background-color: rgba(0, 0, 0, 0.3) !important;
+}
+button.hover\:bg-neutral-800:hover {
+  background-color: rgb(var(--accent)) !important;
+}
+
+/* ── Secondary buttons → sand bg, black text ── */
+.border-black\/10.bg-black\/5 {
+  border-color: rgba(228, 213, 183, 1) !important;
+  background-color: rgba(228, 213, 183, 0.4) !important;
+  font-family: "Courier New", Courier, monospace !important;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.border-black\/10.bg-black\/5:hover {
+  background-color: rgba(88, 139, 139, 0.12) !important;
+  color: rgb(var(--accent)) !important;
+  border-color: rgba(88, 139, 139, 0.4) !important;
+}
+
+/* ── Nav active → teal pill ───────────────── */
+header nav a[aria-current="page"],
+header nav a.active {
+  background-color: rgb(var(--accent)) !important;
+  color: #fff !important;
+}
+
+header + div a[aria-current="page"],
+header div a.bg-neutral-900 {
+  background-color: rgb(var(--accent)) !important;
+  color: #fff !important;
+}
+
+/* ── Admin sidebar active ─────────────────── */
+aside nav a[aria-current="page"],
+aside nav a.active {
+  background-color: rgb(var(--accent)) !important;
+  color: #fff !important;
+}
+
+/* ── Header bar ───────────────────────────── */
+header.sticky {
+  background: rgba(var(--bg) / 0.92) !important;
+  border-bottom-color: rgba(228, 213, 183, 0.6) !important;
+}
+
+/* ── NavBar brand → teal ──────────────────── */
+header .font-serif.text-xl {
+  color: rgb(var(--accent));
+}
+
+/* ── Footer ───────────────────────────────── */
+footer {
+  background-color: #000 !important;
+  color: rgb(var(--sand)) !important;
+  border-top: none !important;
+}
+footer .font-serif.text-lg {
+  color: #fff;
+}
+footer .text-neutral-600,
+footer .text-neutral-700,
+footer .text-neutral-800 {
+  color: rgba(228, 213, 183, 0.7) !important;
+}
+footer .text-xs.text-neutral-600 {
+  color: rgba(228, 213, 183, 0.5) !important;
+}
+footer a:hover {
+  color: #fff !important;
+}
+footer .tracking-wide {
+  color: rgb(var(--accent)) !important;
+}
+
+/* ── Small uppercase labels → teal ────────── */
+.text-neutral-600.tracking-wide {
+  color: rgb(var(--accent));
+  font-family: "Courier New", Courier, monospace;
+  font-weight: 700;
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+}
+
+/* ── Hero section → sand bg ───────────────── */
+.h-\[72vh\] {
+  background-color: rgba(228, 213, 183, 0.5);
+  position: relative;
+}
+
+/* Hero image → contained, centered, small & delicate */
+.h-\[72vh\] img {
+  object-fit: contain !important;
+  object-position: center 40% !important;
+  width: auto !important;
+  max-height: 70% !important;
+  margin: 0 auto !important;
+  display: block !important;
+  mix-blend-mode: multiply;
+}
+
+/* Hero "WINE PROJECT" label */
+section.relative .text-xs.tracking-wide:first-child {
+  color: rgb(var(--accent));
+  font-weight: 700;
+  letter-spacing: 0.2em;
+}
+
+/* Hero overlay text area → add sand gradient for readability */
+section.relative > .absolute.inset-0 {
+  background: linear-gradient(
+    to top,
+    rgba(245, 241, 232, 0.95) 0%,
+    rgba(245, 241, 232, 0.6) 40%,
+    transparent 70%
+  );
+}
+
+/* ── Gradients → sand-tinted ──────────────── */
+.from-black\/10.to-black\/0 {
+  --tw-gradient-from: rgba(228, 213, 183, 0.35) !important;
+  --tw-gradient-to: rgba(228, 213, 183, 0) !important;
+}
+
+.from-black\/\[0\.04\].to-black\/\[0\.01\] {
+  --tw-gradient-from: rgba(228, 213, 183, 0.2) !important;
+  --tw-gradient-to: rgba(228, 213, 183, 0.04) !important;
+}
+
+/* ── Skeleton pulse → sand ────────────────── */
+.animate-pulse.rounded-xl {
+  background-color: rgba(228, 213, 183, 0.5) !important;
+}
+
+/* ── Borders → sand ───────────────────────── */
+.border-b.border-black\/10 {
+  border-bottom-color: rgba(228, 213, 183, 0.7) !important;
+}
+.border-t.border-black\/10 {
+  border-top-color: rgba(228, 213, 183, 0.7) !important;
+}
+
+/* ── Inputs / Selects / Textareas → consistent styling ─── */
+input[class*="rounded-xl"],
+textarea[class*="rounded-xl"],
+select[class*="rounded-xl"],
+input.rounded-xl,
+textarea.rounded-xl,
+select.rounded-xl {
+  border-color: rgba(228, 213, 183, 0.8) !important;
+  background-color: rgb(var(--card)) !important;
+  font-family: "Courier New", Courier, monospace !important;
+  font-size: 0.825rem !important;
+  padding: 0.5rem 0.75rem !important;
+  line-height: 1.5 !important;
+  box-sizing: border-box !important;
+  border-radius: 0.75rem !important;
+  border-width: 1px !important;
+  border-style: solid !important;
+}
+/* Fixed height only for input and select, NOT textarea */
+input[class*="rounded-xl"],
+select[class*="rounded-xl"],
+input.rounded-xl,
+select.rounded-xl {
+  height: 2.5rem !important;
+}
+/* Textarea: auto height, resizable */
+textarea[class*="rounded-xl"],
+textarea.rounded-xl {
+  min-height: 2.5rem !important;
+  height: auto !important;
+  resize: vertical !important;
+}
+select[class*="rounded-xl"],
+select.rounded-xl {
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23588b8b' d='M2 4l4 4 4-4'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 0.75rem center !important;
+  padding-right: 2rem !important;
+}
+input[class*="rounded-xl"]:focus,
+textarea[class*="rounded-xl"]:focus,
+select[class*="rounded-xl"]:focus,
+input.rounded-xl:focus,
+textarea.rounded-xl:focus,
+select.rounded-xl:focus {
+  border-color: rgb(var(--accent)) !important;
+  outline: none !important;
+}
+
+/* ── Scrollbar ────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(228, 213, 183, 0.7);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(88, 139, 139, 0.4);
+}
+
+/* ── Empty state heading → teal ───────────── */
+.card-surface.text-center .font-serif {
+  color: rgb(var(--accent));
+}
+
+/* ── Contact form feedback ────────────────── */
+.rounded-2xl.border.bg-black\/\[0\.03\] {
+  border-color: rgba(228, 213, 183, 0.7) !important;
+  background: rgba(228, 213, 183, 0.2) !important;
+}
+
+/* ── Wine availability → teal ─────────────── */
+.text-xs.text-neutral-700.text-right {
+  color: rgb(var(--accent));
+  font-family: "Courier New", Courier, monospace;
+}
+
+/* ── Prose ─────────────────────────────────── */
+.prose {
+  font-family: "Courier New", Courier, monospace !important;
+}
+.prose a {
+  color: rgb(var(--accent));
+  text-decoration-color: rgba(88, 139, 139, 0.3);
+}
+.prose a:hover {
+  text-decoration-color: rgb(var(--accent));
+}
+
+/* ── Card hover → warm sand ───────────────── */
+.hover\:bg-black\/\[0\.02\]:hover {
+  background-color: rgba(228, 213, 183, 0.2) !important;
+}
+
+/* ── Body text tweaks for monospace readability ── */
+.text-sm {
+  font-size: 0.825rem;
+  line-height: 1.65;
+}
+
+.text-lg {
+  line-height: 1.6;
+}
+
+/* ── Section divider accent ───────────────── */
+section + section {
+  border-top: 1px solid rgba(228, 213, 183, 0.5);
 }

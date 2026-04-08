@@ -3,6 +3,8 @@ import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { writeFile, mkdir } from "node:fs/promises";
 import { resolve, extname } from "node:path";
+import bcrypt from "bcryptjs";
+import { Resend } from "resend";
 import { prisma } from "../src/prisma.js";
 import {
   HomeContentSchema,
@@ -123,17 +125,16 @@ export async function adminRoutes(app: FastifyInstance) {
   app.post("/admin/login", async (req, reply) => {
     const body = AdminLoginSchema.parse((req as any).body);
 
-    const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "";
-    const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
+    // Cerca l'admin nel DB
+    const admin = await prisma.adminUser.findUnique({
+      where: { email: body.email },
+    });
 
-    if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
-      return reply
-        .code(500)
-        .send("ADMIN_EMAIL/ADMIN_PASSWORD mancanti in .env");
-    }
+    if (!admin) return reply.code(401).send("Credenziali non valide");
 
-    const ok = body.email === ADMIN_EMAIL && body.password === ADMIN_PASSWORD;
-    if (!ok) return reply.code(401).send("Credenziali non valide");
+    // Confronta password con hash bcrypt
+    const match = await bcrypt.compare(body.password, admin.passwordHash);
+    if (!match) return reply.code(401).send("Credenziali non valide");
 
     const accessToken = randomUUID();
     const refreshToken = randomUUID();
@@ -227,6 +228,182 @@ export async function adminRoutes(app: FastifyInstance) {
         createdAt: r.createdAt.toISOString(),
       })),
     );
+  });
+
+  app.delete("/admin/contact-leads/:id", async (req, reply) => {
+    requireAdmin(req);
+    const { id } = IdParamSchema.parse((req as any).params);
+
+    const existing = await prisma.contactLead.findUnique({ where: { id } });
+    if (!existing)
+      return reply.code(404).send({ ok: false, message: "Lead non trovato" });
+
+    await prisma.contactLead.delete({ where: { id } });
+    return OkSchema.parse({ ok: true });
+  });
+
+  /* ── CHANGE PASSWORD ─────────────────── */
+
+  const ChangePasswordSchema = z.object({
+    currentPassword: z.string().min(1),
+    newPassword: z
+      .string()
+      .min(6, "La nuova password deve avere almeno 6 caratteri"),
+  });
+
+  app.post("/admin/change-password", async (req, reply) => {
+    requireAdmin(req);
+    const body = ChangePasswordSchema.parse((req as any).body);
+
+    // Prende il primo admin (singolo admin)
+    const admin = await prisma.adminUser.findFirst();
+    if (!admin) return reply.code(500).send("Admin non trovato nel DB");
+
+    // Verifica password attuale con bcrypt
+    const match = await bcrypt.compare(
+      body.currentPassword,
+      admin.passwordHash,
+    );
+    if (!match) return reply.code(400).send("Password attuale non corretta");
+
+    // Hasha la nuova password e salva nel DB
+    const newHash = await bcrypt.hash(body.newPassword, 12);
+    await prisma.adminUser.update({
+      where: { id: admin.id },
+      data: { passwordHash: newHash },
+    });
+
+    // Invalida tutte le sessioni → forza re-login
+    accessSessions.clear();
+    refreshSessions.clear();
+
+    return OkSchema.parse({ ok: true });
+  });
+
+  /* ── RESET PASSWORD (genera token + invia email) ──── */
+
+  const ResetRequestSchema = z.object({
+    email: z.string().email(),
+  });
+
+  app.post("/admin/request-reset", async (req) => {
+    const body = ResetRequestSchema.parse((req as any).body);
+
+    const admin = await prisma.adminUser.findUnique({
+      where: { email: body.email },
+    });
+
+    // Risponde sempre "ok" per non rivelare se l'email esiste
+    if (!admin) return OkSchema.parse({ ok: true });
+
+    // Genera un token casuale con scadenza 1 ora
+    const resetToken = randomUUID();
+    const resetTokenExpiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+    await prisma.adminUser.update({
+      where: { id: admin.id },
+      data: { resetToken, resetTokenExpiresAt },
+    });
+
+    // Costruisci il link di reset
+    const frontendUrl = (
+      process.env.CORS_ORIGIN || "http://localhost:5173"
+    ).replace(/\/$/, "");
+    const resetLink = `${frontendUrl}/admin/reset-password?token=${resetToken}`;
+
+    // Invia email con Resend
+    const resendKey = process.env.RESEND_API_KEY;
+    const fromEmail = process.env.RESEND_FROM_EMAIL || "noreply@impronta.local";
+
+    if (resendKey) {
+      try {
+        const resend = new Resend(resendKey);
+        await resend.emails.send({
+          from: fromEmail,
+          to: admin.email,
+          subject: "Impronta — Reset password",
+          html: `
+            <div style="font-family: 'Courier New', Courier, monospace; max-width: 480px; margin: 0 auto; padding: 32px;">
+              <h2 style="font-size: 20px; font-weight: bold; text-transform: uppercase;">Impronta</h2>
+              <p style="margin-top: 16px; font-size: 14px; line-height: 1.6; color: #333;">
+                Hai richiesto il reset della password. Clicca il link qui sotto per impostarne una nuova.
+                Il link scade tra 1 ora.
+              </p>
+              <a href="${resetLink}"
+                 style="display: inline-block; margin-top: 20px; padding: 12px 24px; background: #588b8b; color: #fff; text-decoration: none; border-radius: 8px; font-size: 14px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em;">
+                Reimposta password
+              </a>
+              <p style="margin-top: 24px; font-size: 12px; color: #888; line-height: 1.5;">
+                Se non hai richiesto questo reset, ignora questa email. La tua password non verrà modificata.
+              </p>
+              <p style="margin-top: 8px; font-size: 11px; color: #aaa; word-break: break-all;">
+                ${resetLink}
+              </p>
+            </div>
+          `,
+        });
+        console.log(`Reset email inviata a ${admin.email}`);
+      } catch (emailErr) {
+        // L'email fallisce ma il token è nel DB — logga per debug
+        console.error("Errore invio email reset:", emailErr);
+        console.log(`FALLBACK — Token reset per ${admin.email}: ${resetToken}`);
+        console.log(`Link: ${resetLink}`);
+      }
+    } else {
+      // Nessuna API key Resend — fallback a console log
+      console.log(`\n========================================`);
+      console.log(`RESEND_API_KEY non configurata.`);
+      console.log(`Reset password per ${admin.email}:`);
+      console.log(`Link: ${resetLink}`);
+      console.log(`Scade: ${resetTokenExpiresAt.toISOString()}`);
+      console.log(`========================================\n`);
+    }
+
+    return OkSchema.parse({ ok: true });
+  });
+
+  /* ── RESET PASSWORD (usa token) ──────── */
+
+  const ResetPasswordSchema = z.object({
+    token: z.string().min(1),
+    newPassword: z.string().min(6),
+  });
+
+  app.post("/admin/reset-password", async (req, reply) => {
+    const body = ResetPasswordSchema.parse((req as any).body);
+
+    const admin = await prisma.adminUser.findUnique({
+      where: { resetToken: body.token },
+    });
+
+    if (!admin) return reply.code(400).send("Token non valido o scaduto");
+
+    // Verifica scadenza
+    if (!admin.resetTokenExpiresAt || admin.resetTokenExpiresAt < new Date()) {
+      // Pulisci il token scaduto
+      await prisma.adminUser.update({
+        where: { id: admin.id },
+        data: { resetToken: null, resetTokenExpiresAt: null },
+      });
+      return reply.code(400).send("Token scaduto. Richiedine uno nuovo.");
+    }
+
+    // Hasha la nuova password, salva, e pulisci il token
+    const newHash = await bcrypt.hash(body.newPassword, 12);
+    await prisma.adminUser.update({
+      where: { id: admin.id },
+      data: {
+        passwordHash: newHash,
+        resetToken: null,
+        resetTokenExpiresAt: null,
+      },
+    });
+
+    // Invalida tutte le sessioni
+    accessSessions.clear();
+    refreshSessions.clear();
+
+    return OkSchema.parse({ ok: true });
   });
 
   /* ── ZONES ──────────────────────────── */

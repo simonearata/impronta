@@ -7,6 +7,7 @@ import { Meta } from "../components/Meta";
 import { Textarea } from "../components/Textarea";
 import {
   adminUpdateSettings,
+  adminDeleteContactLead,
   useAdminContactLeads,
   useAdminSettings,
 } from "../data/admin";
@@ -198,7 +199,7 @@ export function AdminContactsEditorPage() {
         ) : null}
 
         <div className="grid gap-6 lg:grid-cols-2">
-          <div className="card-surface rounded-2xl p-8 sm:p-10 grid gap-4">
+          <div className="card-surface rounded-2xl p-8 sm:p-10 grid gap-4 self-start">
             <div>
               <label
                 className="text-xs text-neutral-600 tracking-wide"
@@ -306,7 +307,7 @@ export function AdminContactsEditorPage() {
             </div>
           </div>
 
-          <div className="card-surface rounded-2xl p-8 sm:p-10">
+          <div className="card-surface rounded-2xl p-8 sm:p-10 self-start">
             <div className="text-xs text-neutral-600 tracking-wide">
               RICHIESTE
             </div>
@@ -319,7 +320,7 @@ export function AdminContactsEditorPage() {
                 : "In api arrivano dal DB via /admin/contact-leads."}
             </div>
 
-            <div className="mt-6 grid gap-3">
+            <div className="mt-6 max-h-[600px] overflow-y-auto pr-1 grid gap-3">
               {DATA_SOURCE === "api" && leadsApi.error ? (
                 <EmptyState
                   title="Errore"
@@ -336,8 +337,29 @@ export function AdminContactsEditorPage() {
                     key={(l as any).id ?? i}
                     className="rounded-2xl border border-black/10 bg-black/[0.02] p-5"
                   >
-                    <div className="text-xs text-neutral-600">
-                      {new Date(l.createdAt).toLocaleString("it-IT")}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="text-xs text-neutral-600">
+                        {new Date(l.createdAt).toLocaleString("it-IT")}
+                      </div>
+                      <button
+                        className="focus-ring rounded-lg px-2 py-1 text-xs border border-black/10 bg-black/5 hover:bg-red-50 hover:text-red-700 hover:border-red-200 transition"
+                        onClick={async () => {
+                          if (!confirm("Eliminare questa richiesta?")) return;
+                          try {
+                            await adminDeleteContactLead((l as any).id);
+                            if (DATA_SOURCE === "mock") {
+                              setLeadsMock(readLeads().slice(0, 20));
+                            } else {
+                              leadsApi.mutate();
+                            }
+                          } catch (e) {
+                            alert(String((e as Error).message || e));
+                          }
+                        }}
+                        aria-label="Elimina richiesta"
+                      >
+                        Elimina
+                      </button>
                     </div>
                     <div className="mt-2 text-sm text-neutral-900">
                       {l.subject}

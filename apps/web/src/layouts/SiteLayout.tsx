@@ -1,4 +1,5 @@
 import { Outlet } from "react-router-dom";
+import { CookieBanner } from "../components/CookieBanner";
 import { Footer } from "../components/Footer";
 import { NavBar } from "../components/NavBar";
 
@@ -10,6 +11,7 @@ export function SiteLayout() {
         <Outlet />
       </main>
       <Footer />
+      <CookieBanner />
     </div>
   );
 }

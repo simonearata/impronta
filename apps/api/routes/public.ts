@@ -69,11 +69,7 @@ export async function publicRoutes(app: FastifyInstance) {
     if (query.country) where.country = query.country;
     if (query.region) where.region = query.region;
     if (query.q) {
-      where.OR = [
-        { name: qContains(query.q) },
-        { descriptionShort: qContains(query.q) },
-        { descriptionLong: qContains(query.q) },
-      ];
+      where.name = qContains(query.q);
     }
 
     const rows = await prisma.zone.findMany({
@@ -113,11 +109,7 @@ export async function publicRoutes(app: FastifyInstance) {
     const where: any = {};
     if (zoneId) where.zoneId = zoneId;
     if (query.q) {
-      where.OR = [
-        { name: qContains(query.q) },
-        { philosophyShort: qContains(query.q) },
-        { storyLong: qContains(query.q) },
-      ];
+      where.name = qContains(query.q);
     }
 
     const rows = await prisma.producer.findMany({
@@ -187,12 +179,7 @@ export async function publicRoutes(app: FastifyInstance) {
     if (vintage != null) where.vintage = vintage;
 
     if (query.q) {
-      where.OR = [
-        { name: qContains(query.q) },
-        { grapes: qContains(query.q) },
-        { tastingNotes: qContains(query.q) },
-        { vinification: qContains(query.q) },
-      ];
+      where.name = qContains(query.q);
     }
 
     if (zoneId) {

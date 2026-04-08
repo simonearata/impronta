@@ -40,9 +40,9 @@ services:
       - key: PUBLIC_UPLOAD_BASE_URL
         value: CAMBIA_DOPO_DEPLOY
       - key: ADMIN_EMAIL
-        value: admin@impronta.local
+        value: impronta@gmail.com
       - key: ADMIN_PASSWORD
-        value: admin123
+        value: Peligni-22
 
   # --- Frontend (Vite static) ---
   - type: web
@@ -71,6 +71,6 @@ services:
       - key: VITE_SITE_URL
         value: CAMBIA_DOPO_DEPLOY
       - key: VITE_ADMIN_EMAIL
-        value: admin@impronta.local
+        value: improntavini@gmail.com
       - key: VITE_ADMIN_PASSWORD
-        value: admin123
+        value: Peligni-22

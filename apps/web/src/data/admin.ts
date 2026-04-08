@@ -501,6 +501,43 @@ export async function adminListContactLeads(): Promise<AdminContactLead[]> {
   return readMockLeads().slice(0, 200);
 }
 
+export async function adminDeleteContactLead(id: string): Promise<void> {
+  if (MODE === "api") {
+    await adminRequest(
+      z.object({ ok: z.literal(true) }),
+      `/admin/contact-leads/${id}`,
+      {
+        method: "DELETE",
+      },
+    );
+    await mutate("admin:contact-leads");
+    return;
+  }
+  // mock: remove from localStorage
+  const leads = readMockLeads().filter((l) => l.id !== id);
+  localStorage.setItem("impronta_contact_leads", JSON.stringify(leads));
+  await mutate("admin:contact-leads");
+}
+
+export async function adminChangePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  if (MODE === "api") {
+    await adminRequest(
+      z.object({ ok: z.literal(true) }),
+      "/admin/change-password",
+      {
+        method: "POST",
+        body: JSON.stringify({ currentPassword, newPassword }),
+      },
+    );
+    return;
+  }
+  // mock: no-op
+  throw new Error("Cambio password disponibile solo con backend API.");
+}
+
 /* =========================
    SWR HOOKS
    ========================= */

@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { PrismaClient, WineType } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
@@ -13,6 +14,36 @@ function slugify(s: string) {
 }
 
 async function upsertSingletons() {
+  // ── Admin User ──────────────────────
+  // Crea l'admin SOLO se non esiste già nel DB.
+  // La password viene presa dalla env var ADMIN_PASSWORD e hashata con bcrypt.
+  // Dopo il primo seed, la password vive SOLO nel DB (hashata).
+  // Se l'admin esiste già, NON sovrascrive la password
+  // (così il cambio password dall'admin panel persiste tra i deploy).
+  const adminEmail = (
+    process.env.ADMIN_EMAIL || "improntavini@gmail.com"
+  ).trim();
+  const adminPassword = process.env.ADMIN_PASSWORD || "Peligni-22";
+
+  const existingAdmin = await prisma.adminUser.findUnique({
+    where: { email: adminEmail },
+  });
+
+  if (!existingAdmin) {
+    const hash = await bcrypt.hash(adminPassword, 12);
+    await prisma.adminUser.create({
+      data: {
+        email: adminEmail,
+        passwordHash: hash,
+      },
+    });
+    console.log(`Admin creato: ${adminEmail}`);
+  } else {
+    console.log(
+      `Admin già esistente: ${adminEmail} — password NON sovrascritta`,
+    );
+  }
+
   await prisma.siteSettings.upsert({
     where: { id: 1 },
     update: {},
@@ -77,8 +108,8 @@ async function main() {
             "Una zona che vale la pena osservare con calma: geologia, esposizioni, altitudini e un mosaico di pratiche agricole che cambiano da collina a collina.",
           coverImageUrl: null,
         },
-      })
-    )
+      }),
+    ),
   );
 
   const zoneByKey = (country: string, region: string, name: string) => {
@@ -176,8 +207,8 @@ async function main() {
           instagram: p.instagram,
           coverImageUrl: null,
         },
-      })
-    )
+      }),
+    ),
   );
 
   const producerByName = (name: string) => {
@@ -210,7 +241,7 @@ async function main() {
     winesInput.map((w) => {
       const producer = producerByName(w.producer);
       const slug = slugify(
-        `${producer.slug}-${w.name}${w.vintage ? `-${w.vintage}` : ""}`
+        `${producer.slug}-${w.name}${w.vintage ? `-${w.vintage}` : ""}`,
       );
       return prisma.wine.upsert({
         where: { slug },
@@ -246,7 +277,7 @@ async function main() {
           imageUrl: null,
         },
       });
-    })
+    }),
   );
 
   const featuredZoneIds = zones.slice(0, 3).map((z) => z.id);

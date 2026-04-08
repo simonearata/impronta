@@ -1,5 +1,6 @@
 import { Link, useParams } from "react-router-dom";
 import { Breadcrumbs } from "../components/Breadcrumbs";
+import { BottleViewer3D } from "../components/BottleViewer3D";
 import { Container } from "../components/Container";
 import { EmptyState } from "../components/EmptyState";
 import { Meta } from "../components/Meta";
@@ -87,16 +88,11 @@ export function WineDetailPage() {
               <div className="lg:col-span-3">
                 <div className="card-surface rounded-2xl overflow-hidden">
                   <div className="grid sm:grid-cols-[240px_1fr] lg:grid-cols-[280px_1fr]">
-                    <div className="flex items-center justify-center bg-gradient-to-b from-black/[0.04] to-black/[0.01] p-6 sm:p-8">
-                      {wine.imageUrl ? (
-                        <img
-                          src={wine.imageUrl}
-                          alt={wine.name}
-                          className="max-h-[360px] w-auto object-contain drop-shadow-lg"
-                        />
-                      ) : (
-                        <div className="h-[280px] w-24 rounded-xl bg-black/[0.06]" />
-                      )}
+                    <div
+                      className="flex items-center justify-center p-2 sm:p-4"
+                      style={{ minHeight: 360 }}
+                    >
+                      <BottleViewer3D labelUrl={wine.imageUrl} />
                     </div>
 
                     <div className="p-8 sm:p-10 flex flex-col justify-center">
