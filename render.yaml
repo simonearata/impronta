@@ -1,13 +1,13 @@
-# render.yaml — Blueprint per deploy Impronta su Render
+# render.yaml — Blueprint Impronta su Render
 
 databases:
   - name: impronta-db
-    plan: starter
+    plan: basic-256mb
     databaseName: impronta
     user: impronta
 
 services:
-  # --- API (Fastify + Prisma) ---
+  # --- API (Fastify + Prisma) — $7/mese, sempre acceso ---
   - type: web
     name: impronta-api
     runtime: node
@@ -28,7 +28,7 @@ services:
       - key: PORT
         value: "3001"
       - key: CORS_ORIGIN
-        value: CAMBIA_DOPO_DEPLOY
+        sync: false
       - key: DATABASE_URL
         fromDatabase:
           name: impronta-db
@@ -36,21 +36,20 @@ services:
       - key: UPLOAD_DIR
         value: ./uploads
       - key: PUBLIC_UPLOAD_BASE_URL
-        value: CAMBIA_DOPO_DEPLOY
+        sync: false
       - key: ADMIN_EMAIL
-        value: CAMBIA_DOPO_DEPLOY
+        sync: false
       - key: ADMIN_PASSWORD
-        value: CAMBIA_DOPO_DEPLOY
+        sync: false
       - key: RESEND_API_KEY
-        value: CAMBIA_DOPO_DEPLOY
+        sync: false
       - key: RESEND_FROM_EMAIL
         value: noreply@impronta-vini.it
 
-  # --- Frontend (Vite static) ---
+  # --- Frontend (Vite static) — gratis ---
   - type: web
     name: impronta-web
     runtime: static
-    plan: starter
     rootDir: apps/web
     buildCommand: |
       npm install -g pnpm &&
@@ -69,6 +68,6 @@ services:
       - key: VITE_DATA_SOURCE
         value: api
       - key: VITE_API_URL
-        value: CAMBIA_DOPO_DEPLOY
+        sync: false
       - key: VITE_SITE_URL
-        value: CAMBIA_DOPO_DEPLOY
+        sync: false
