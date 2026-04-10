@@ -78,7 +78,7 @@ export async function refresh(refreshToken: string): Promise<AuthSession> {
     });
 
     const email = String(
-      import.meta.env.VITE_ADMIN_EMAIL || "improntavini@gmail.com",
+      import.meta.env.VITE_ADMIN_EMAIL || "admin@impronta.local",
     ).trim();
 
     return {
@@ -92,9 +92,7 @@ export async function refresh(refreshToken: string): Promise<AuthSession> {
     accessToken: token(),
     refreshToken,
     user: {
-      email: String(
-        import.meta.env.VITE_ADMIN_EMAIL || "improntavini@gmail.com",
-      ),
+      email: String(import.meta.env.VITE_ADMIN_EMAIL || "admin@impronta.local"),
       role: "admin",
     },
   };

@@ -20,10 +20,8 @@ async function upsertSingletons() {
   // Dopo il primo seed, la password vive SOLO nel DB (hashata).
   // Se l'admin esiste già, NON sovrascrive la password
   // (così il cambio password dall'admin panel persiste tra i deploy).
-  const adminEmail = (
-    process.env.ADMIN_EMAIL || "improntavini@gmail.com"
-  ).trim();
-  const adminPassword = process.env.ADMIN_PASSWORD || "Peligni-22";
+  const adminEmail = (process.env.ADMIN_EMAIL || "admin@example.com").trim();
+  const adminPassword = process.env.ADMIN_PASSWORD || "changeme123";
 
   const existingAdmin = await prisma.adminUser.findUnique({
     where: { email: adminEmail },

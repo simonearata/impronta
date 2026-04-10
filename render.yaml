@@ -1,6 +1,4 @@
 # render.yaml — Blueprint per deploy Impronta su Render
-# Metti questo file nella ROOT del repo, poi su Render:
-# New > Blueprint > seleziona il repo > applica
 
 databases:
   - name: impronta-db
@@ -40,9 +38,13 @@ services:
       - key: PUBLIC_UPLOAD_BASE_URL
         value: CAMBIA_DOPO_DEPLOY
       - key: ADMIN_EMAIL
-        value: impronta@gmail.com
+        value: CAMBIA_DOPO_DEPLOY
       - key: ADMIN_PASSWORD
-        value: Peligni-22
+        value: CAMBIA_DOPO_DEPLOY
+      - key: RESEND_API_KEY
+        value: CAMBIA_DOPO_DEPLOY
+      - key: RESEND_FROM_EMAIL
+        value: noreply@impronta-vini.it
 
   # --- Frontend (Vite static) ---
   - type: web
@@ -70,7 +72,3 @@ services:
         value: CAMBIA_DOPO_DEPLOY
       - key: VITE_SITE_URL
         value: CAMBIA_DOPO_DEPLOY
-      - key: VITE_ADMIN_EMAIL
-        value: improntavini@gmail.com
-      - key: VITE_ADMIN_PASSWORD
-        value: Peligni-22
