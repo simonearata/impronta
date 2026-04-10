@@ -18,8 +18,9 @@ export async function buildServer(env: Env) {
       return reply.code(400).send({ ok: false, issues: err.issues });
     }
 
-    const status = (err as any).statusCode ?? 500;
-    return reply.code(status).send({ ok: false, message: err.message });
+    const error = err as Error & { statusCode?: number };
+    const status = error.statusCode ?? 500;
+    return reply.code(status).send({ ok: false, message: error.message });
   });
 
   await app.register(cors, {
