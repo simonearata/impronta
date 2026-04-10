@@ -13,7 +13,7 @@ import type { Env } from "./env.js";
 export async function buildServer(env: Env) {
   const app = Fastify({ logger: true });
 
-  app.setErrorHandler((err, _req, reply) => {
+  app.setErrorHandler((err: any, _req, reply) => {
     if (err instanceof ZodError) {
       return reply.code(400).send({ ok: false, issues: err.issues });
     }
