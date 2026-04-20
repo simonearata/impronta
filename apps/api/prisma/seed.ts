@@ -71,6 +71,7 @@ async function upsertSingletons() {
         "Mettere in relazione territorio e lavoro umano, offrendo un catalogo da consultare con calma, per scegliere meglio.",
       featuredZoneIds: [],
       featuredProducerIds: [],
+      featuredWineIds: [],
     },
   });
 }

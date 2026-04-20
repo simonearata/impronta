@@ -11,6 +11,7 @@ export function NavBar() {
   const items = useMemo(
     () => [
       { to: "/", label: "Home" },
+      { to: "/my-project", label: "My Project" },
       { to: "/zone", label: "Zone" },
       { to: "/aziende", label: "Aziende" },
       { to: "/vini", label: "Vini" },

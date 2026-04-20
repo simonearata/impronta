@@ -15,6 +15,7 @@ import {
   adminUpsertWine,
   useAdminProducers,
   useAdminWine,
+  useAdminWineStock,
   wineTypeOptions,
 } from "../data/admin";
 
@@ -44,6 +45,7 @@ export function AdminWineEditPage() {
 
   const wine = useAdminWine(!isNew ? id : undefined);
   const producers = useAdminProducers();
+  const stock = useAdminWineStock(!isNew ? id : undefined);
 
   const [slugTouched, setSlugTouched] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -465,6 +467,28 @@ export function AdminWineEditPage() {
           </div>
         </div>
       </div>
+
+      {!isNew && (
+        <div className="mt-6 card-surface rounded-2xl p-8">
+          <div className="flex items-center justify-between gap-6">
+            <div>
+              <div className="text-xs text-neutral-600 tracking-wide">STOCK</div>
+              <div className="mt-1 flex items-baseline gap-3">
+                <span className={`font-mono text-4xl font-semibold ${stock.data != null && stock.data < 0 ? "text-red-600" : stock.data === 0 ? "text-neutral-400" : "text-neutral-900"}`}>
+                  {stock.isLoading ? "—" : (stock.data ?? 0)}
+                </span>
+                <span className="text-sm text-neutral-500">bottiglie disponibili</span>
+              </div>
+            </div>
+            <Link
+              className="focus-ring rounded-full px-4 py-2 text-sm border border-black/10 bg-black/5 whitespace-nowrap"
+              to="/admin/magazzino"
+            >
+              Vai al magazzino
+            </Link>
+          </div>
+        </div>
+      )}
     </>
   );
 }

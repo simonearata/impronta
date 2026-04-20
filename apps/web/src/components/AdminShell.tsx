@@ -15,6 +15,7 @@ export function AdminShell() {
     { to: "/admin/zone", label: "Zone" },
     { to: "/admin/aziende", label: "Aziende" },
     { to: "/admin/vini", label: "Vini" },
+    { to: "/admin/magazzino", label: "Magazzino" },
     { to: "/admin/home", label: "Home" },
     { to: "/admin/contatti", label: "Contatti" },
   ];

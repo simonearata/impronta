@@ -29,6 +29,36 @@ async function fetchJson(path: string, init?: RequestInit) {
   return { res, json };
 }
 
+export async function adminUploadRequest<T>(
+  schema: z.ZodType<T>,
+  path: string,
+  formData: FormData,
+): Promise<T> {
+  const s0 = readSession();
+  if (!s0?.accessToken) throw new Error("Non autenticato");
+
+  if (!API_URL) throw new Error("VITE_API_URL mancante");
+
+  const res = await fetch(`${API_URL}${path}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${s0.accessToken}` },
+    body: formData,
+  });
+
+  const text = await res.text().catch(() => "");
+  const json = text ? (() => { try { return JSON.parse(text); } catch { return text; } })() : null;
+
+  if (!res.ok) {
+    const msg = typeof json === "string" ? json
+      : json && typeof json === "object" && "message" in (json as any)
+        ? String((json as any).message)
+        : `Request failed: ${res.status}`;
+    throw new Error(msg);
+  }
+
+  return schema.parse(json);
+}
+
 export async function adminRequest<T>(
   schema: z.ZodType<T>,
   path: string,

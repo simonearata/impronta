@@ -16,6 +16,12 @@ enum WineType {
   other
 }
 
+enum MovementType {
+  in
+  out
+  adjustment
+}
+
 model Zone {
   id               String   @id @default(cuid())
   name             String
@@ -68,7 +74,8 @@ model Wine {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  producer Producer @relation(fields: [producerId], references: [id], onDelete: Restrict)
+  producer  Producer            @relation(fields: [producerId], references: [id], onDelete: Restrict)
+  movements InventoryMovement[]
 }
 
 model ContactLead {
@@ -98,9 +105,27 @@ model HomeContent {
   story              String
   vision             String
   mission            String
-  featuredZoneIds    String[]
+  featuredZoneIds     String[]
   featuredProducerIds String[]
-  updatedAt          DateTime @updatedAt
+  featuredWineIds     String[]
+  updatedAt           DateTime @updatedAt
+}
+
+model InventoryMovement {
+  id                 String       @id @default(cuid())
+  wineId             String?
+  wine               Wine?        @relation(fields: [wineId], references: [id], onDelete: SetNull)
+  wineName           String
+  type               MovementType
+  quantity           Float
+  unitPriceCents     Int?
+  invoiceNumber      String?
+  invoiceDate        String?
+  supplierOrCustomer String?
+  invoiceFileUrl     String?
+  notes              String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
 }
 
 model AdminUser {

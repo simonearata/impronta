@@ -66,6 +66,7 @@ export const HomeContentSchema = z.object({
   mission: z.string().trim().min(1),
   featuredZoneIds: z.array(z.string()),
   featuredProducerIds: z.array(z.string()),
+  featuredWineIds: z.array(z.string()).default([]),
 });
 
 export type HomeContent = z.infer<typeof HomeContentSchema>;
@@ -101,6 +102,7 @@ export const WineDetailSchema = z.object({
   wine: WineSchema,
   producer: ProducerSchema,
   zone: ZoneSchema,
+  stock: z.number().nullable().optional(),
 });
 
 export const AuthUserSchema = z.object({
@@ -117,4 +119,35 @@ export const AuthSessionSchema = z.object({
 export const AuthLoginInputSchema = z.object({
   email: EmailSchema,
   password: z.string().min(1),
+});
+
+export const MovementTypeSchema = z.enum(["in", "out", "adjustment"]);
+
+export const InventoryMovementSchema = z.object({
+  id: z.string(),
+  wineId: z.string().nullable(),
+  wineName: z.string(),
+  type: MovementTypeSchema,
+  quantity: z.number(),
+  unitPriceCents: z.number().int().nullable(),
+  invoiceNumber: z.string().nullable(),
+  invoiceDate: z.string().nullable(),
+  supplierOrCustomer: z.string().nullable(),
+  invoiceFileUrl: z.string().nullable(),
+  notes: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export const InventoryMovementInputSchema = z.object({
+  wineId: z.string().nullable(),
+  wineName: z.string().min(1),
+  type: MovementTypeSchema,
+  quantity: z.number().refine((v) => v !== 0, "La quantità non può essere zero"),
+  unitPriceCents: z.number().int().positive().nullable(),
+  invoiceNumber: z.string().nullable(),
+  invoiceDate: z.string().nullable(),
+  supplierOrCustomer: z.string().nullable(),
+  invoiceFileUrl: z.string().nullable(),
+  notes: z.string().nullable(),
 });

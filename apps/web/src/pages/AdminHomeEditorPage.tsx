@@ -6,6 +6,7 @@ import {
   adminUpdateHome,
   useAdminHome,
   useAdminProducers,
+  useAdminWines,
   useAdminZones,
 } from "../data/admin";
 import { Meta } from "../components/Meta";
@@ -19,6 +20,7 @@ export function AdminHomeEditorPage() {
   const home = useAdminHome();
   const zones = useAdminZones();
   const producers = useAdminProducers();
+  const wines = useAdminWines();
 
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -32,6 +34,7 @@ export function AdminHomeEditorPage() {
       mission: "",
       featuredZoneIds: [],
       featuredProducerIds: [],
+      featuredWineIds: [],
     };
   }, []);
 
@@ -169,7 +172,7 @@ export function AdminHomeEditorPage() {
             </div>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-6 md:grid-cols-3">
             <div className="rounded-2xl border border-black/10 bg-black/[0.02] p-6">
               <div className="text-xs text-neutral-600 tracking-wide">
                 ZONE IN EVIDENZA
@@ -223,6 +226,47 @@ export function AdminHomeEditorPage() {
                         }))
                       }
                       aria-label={`Seleziona ${p.name}`}
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-black/10 bg-black/[0.02] p-6">
+              <div className="text-xs text-neutral-600 tracking-wide">
+                VINI IN EVIDENZA
+              </div>
+              <p className="mt-1 text-xs text-neutral-500">
+                Se nessuno è selezionato, vengono mostrati tutti.
+              </p>
+              <div className="mt-3 grid gap-2">
+                {(wines.data || []).map((w) => (
+                  <label
+                    key={w.id}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-black/10 bg-[rgb(var(--card))] px-3 py-2"
+                  >
+                    <div className="text-sm text-neutral-900">
+                      {w.name}
+                      {w.vintage ? (
+                        <span className="ml-1 text-xs text-neutral-500">
+                          {w.vintage}
+                        </span>
+                      ) : null}
+                    </div>
+                    <input
+                      type="checkbox"
+                      className="h-5 w-5"
+                      checked={(form.featuredWineIds ?? []).includes(w.id)}
+                      onChange={() =>
+                        setForm((f) => ({
+                          ...f,
+                          featuredWineIds: toggle(
+                            f.featuredWineIds ?? [],
+                            w.id,
+                          ),
+                        }))
+                      }
+                      aria-label={`Seleziona ${w.name}`}
                     />
                   </label>
                 ))}
