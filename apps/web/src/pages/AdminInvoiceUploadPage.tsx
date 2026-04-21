@@ -8,10 +8,21 @@ import { Select } from "../components/Select";
 import {
   adminCreateMovement,
   adminExtractInvoice,
+  adminUpsertProducer,
+  adminUpsertWine,
+  adminUpsertZone,
+  calculateStock,
+  useAdminMovements,
+  useAdminProducers,
   useAdminWines,
+  useAdminZones,
   type ExtractedInvoice,
 } from "../data/admin";
-import type { InventoryMovementInput } from "../shared/types";
+import type { InventoryMovementInput, WineType } from "../shared/types";
+
+function slugify(s: string) {
+  return s.toLowerCase().trim().replace(/['']/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}
 
 /* ── name matching ─────────────────────────────────────── */
 
@@ -29,9 +40,9 @@ function normalizeWords(s: string): string[] {
 function matchWineId(
   wineName: string,
   wines: { id: string; name: string; vintage: number | null }[],
-): string {
+): { id: string; score: number } {
   const invoiceWords = normalizeWords(wineName);
-  if (invoiceWords.length === 0) return "";
+  if (invoiceWords.length === 0) return { id: "", score: 0 };
   let bestId = "";
   let bestScore = 0;
   for (const w of wines) {
@@ -42,6 +53,24 @@ function matchWineId(
     );
     const score = common.length / Math.max(invoiceWords.length, catalogWords.length);
     if (score > bestScore) { bestScore = score; bestId = w.id; }
+  }
+  return bestScore >= 0.4 ? { id: bestId, score: bestScore } : { id: "", score: 0 };
+}
+
+function matchProducerId(
+  supplierName: string,
+  producers: { id: string; name: string }[],
+): string {
+  const words = normalizeWords(supplierName);
+  if (words.length === 0) return "";
+  let bestId = "";
+  let bestScore = 0;
+  for (const p of producers) {
+    const pWords = normalizeWords(p.name);
+    if (pWords.length === 0) continue;
+    const common = words.filter((w) => pWords.some((pw) => pw.includes(w) || w.includes(pw)));
+    const score = common.length / Math.max(words.length, pWords.length);
+    if (score > bestScore) { bestScore = score; bestId = p.id; }
   }
   return bestScore >= 0.4 ? bestId : "";
 }
@@ -74,6 +103,7 @@ type ReviewLine = {
   included: boolean;
   wineName: string;
   wineId: string;
+  matchScore: number; // 0 = nessun auto-match o selezione manuale
   quantity: string;
   unitPriceEur: string;
   notes: string;
@@ -103,16 +133,39 @@ function buildReview(
     invoiceDate: extracted.invoiceDate ?? "",
     supplierOrCustomer: extracted.supplierOrCustomer ?? "",
     invoiceFileUrl: extracted.invoiceFileUrl ?? "",
-    lines: extracted.lines.map((l) => ({
-      included: true,
-      wineName: l.wineName,
-      wineId: matchWineId(l.wineName, wines),
-      quantity: String(l.quantity),
-      unitPriceEur: l.unitPriceCents != null ? (l.unitPriceCents / 100).toFixed(2) : "",
-      notes: l.notes ?? "",
-    })),
+    lines: extracted.lines.map((l) => {
+      const match = matchWineId(l.wineName, wines);
+      return {
+        included: true,
+        wineName: l.wineName,
+        wineId: match.id,
+        matchScore: match.score,
+        quantity: String(l.quantity),
+        unitPriceEur: l.unitPriceCents != null ? (l.unitPriceCents / 100).toFixed(2) : "",
+        notes: l.notes ?? "",
+      };
+    }),
   };
 }
+
+type QuickCreate = {
+  invIdx: number;
+  lineIdx: number;
+  // wine
+  name: string;
+  producerId: string; // "" = nessuno, "__new__" = crea nuovo
+  type: WineType;
+  vintage: string;
+  // nuovo produttore (se producerId === "__new__")
+  newProducerName: string;
+  newProducerZoneId: string; // "" = nessuno, "__new__" = crea nuova zona
+  // nuova zona (se newProducerZoneId === "__new__")
+  newZoneName: string;
+  newZoneCountry: string;
+  newZoneRegion: string;
+  busy: boolean;
+  err: string;
+};
 
 type Step = "upload" | "loading" | "review" | "done";
 
@@ -121,13 +174,18 @@ type Step = "upload" | "loading" | "review" | "done";
 export function AdminInvoiceUploadPage() {
   const nav = useNavigate();
   const wines = useAdminWines();
+  const producers = useAdminProducers();
+  const zones = useAdminZones();
+  const movements = useAdminMovements();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [step, setStep] = useState<Step>("upload");
+  const [quickCreate, setQuickCreate] = useState<QuickCreate | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [extractErr, setExtractErr] = useState("");
   const [saveErr, setSaveErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [negativeAlert, setNegativeAlert] = useState<string[]>([]);
 
   const [progress, setProgress] = useState<{ current: number; total: number; fileName: string } | null>(null);
   const [invoices, setInvoices] = useState<ReviewInvoice[]>([]);
@@ -232,7 +290,7 @@ export function AdminInvoiceUploadPage() {
               ...inv,
               lines: inv.lines.map((l, j) =>
                 j === lineIdx
-                  ? { ...l, wineId, wineName: wine ? wine.name + (wine.vintage ? ` ${wine.vintage}` : "") : l.wineName }
+                  ? { ...l, wineId, matchScore: 0, wineName: wine ? wine.name + (wine.vintage ? ` ${wine.vintage}` : "") : l.wineName }
                   : l,
               ),
             }
@@ -243,8 +301,32 @@ export function AdminInvoiceUploadPage() {
 
   const totalIncluded = invoices.reduce((acc, inv) => acc + inv.lines.filter((l) => l.included).length, 0);
 
-  async function onConfirm() {
+  async function onConfirm(force = false) {
     setSaveErr("");
+    setNegativeAlert([]);
+
+    // Controllo giacenze negative per movimenti in uscita
+    if (!force) {
+      const allMovements = movements.data || [];
+      const negatives: string[] = [];
+      for (const inv of invoices) {
+        if (inv.header.type !== "out") continue;
+        for (const line of inv.lines.filter((l) => l.included && l.wineId)) {
+          const qty = parseFloat(line.quantity);
+          if (isNaN(qty)) continue;
+          const current = calculateStock(allMovements, line.wineId);
+          if (current - qty < 0) {
+            const wine = (wines.data || []).find((w) => w.id === line.wineId);
+            negatives.push(`${wine?.name ?? line.wineName} (giacenza: ${current}, uscita: ${qty})`);
+          }
+        }
+      }
+      if (negatives.length > 0) {
+        setNegativeAlert(negatives);
+        return;
+      }
+    }
+
     setBusy(true);
     let count = 0;
     try {
@@ -287,6 +369,111 @@ export function AdminInvoiceUploadPage() {
     setSaveErr("");
     setExtractErr("");
     setProgress(null);
+    setQuickCreate(null);
+    setNegativeAlert([]);
+  }
+
+  function openQuickCreate(invIdx: number, lineIdx: number, wineName: string, supplierName: string) {
+    const autoProducerId = matchProducerId(supplierName, producers.data || []);
+    setQuickCreate({
+      invIdx, lineIdx,
+      name: wineName,
+      producerId: autoProducerId,
+      type: "white",
+      vintage: "",
+      newProducerName: supplierName,
+      newProducerZoneId: "",
+      newZoneName: "",
+      newZoneCountry: "",
+      newZoneRegion: "",
+      busy: false,
+      err: "",
+    });
+  }
+
+  async function submitQuickCreate() {
+    if (!quickCreate) return;
+    const q = quickCreate;
+
+    if (!q.name.trim()) {
+      setQuickCreate((s) => s && ({ ...s, err: "Il nome del vino è obbligatorio." }));
+      return;
+    }
+    if (!q.producerId) {
+      setQuickCreate((s) => s && ({ ...s, err: "Scegli o crea un'azienda." }));
+      return;
+    }
+    if (q.producerId === "__new__") {
+      if (!q.newProducerName.trim()) {
+        setQuickCreate((s) => s && ({ ...s, err: "Il nome dell'azienda è obbligatorio." }));
+        return;
+      }
+      if (!q.newProducerZoneId) {
+        setQuickCreate((s) => s && ({ ...s, err: "Scegli o crea una zona per l'azienda." }));
+        return;
+      }
+      if (q.newProducerZoneId === "__new__" && (!q.newZoneName.trim() || !q.newZoneCountry.trim() || !q.newZoneRegion.trim())) {
+        setQuickCreate((s) => s && ({ ...s, err: "Compila nome, paese e regione per la nuova zona." }));
+        return;
+      }
+    }
+
+    setQuickCreate((s) => s && ({ ...s, busy: true, err: "" }));
+    try {
+      let resolvedProducerId = q.producerId;
+      let producerSlug = (producers.data || []).find((p) => p.id === q.producerId)?.slug ?? "";
+
+      if (q.producerId === "__new__") {
+        // 1. Crea zona se necessario
+        let resolvedZoneId = q.newProducerZoneId;
+        if (q.newProducerZoneId === "__new__") {
+          const newZone = await adminUpsertZone({
+            id: crypto.randomUUID(),
+            name: q.newZoneName.trim(),
+            slug: slugify(q.newZoneName),
+            country: q.newZoneCountry.trim(),
+            region: q.newZoneRegion.trim(),
+            descriptionShort: "",
+            descriptionLong: "",
+            coverImageUrl: null,
+          });
+          resolvedZoneId = newZone.id;
+        }
+        // 2. Crea produttore
+        producerSlug = slugify(q.newProducerName);
+        const newProducer = await adminUpsertProducer({
+          id: crypto.randomUUID(),
+          zoneId: resolvedZoneId,
+          name: q.newProducerName.trim(),
+          slug: producerSlug,
+          philosophyShort: "",
+          storyLong: "",
+          location: null,
+          website: null,
+          instagram: null,
+          coverImageUrl: null,
+        });
+        resolvedProducerId = newProducer.id;
+      }
+
+      // 3. Crea vino
+      const wine = await adminUpsertWine({
+        id: crypto.randomUUID(),
+        producerId: resolvedProducerId,
+        name: q.name.trim(),
+        slug: slugify(`${producerSlug}-${q.name}${q.vintage ? `-${q.vintage}` : ""}`),
+        vintage: q.vintage ? parseInt(q.vintage, 10) : null,
+        type: q.type,
+        grapes: null, alcohol: null, vinification: null,
+        tastingNotes: null, pairing: null,
+        priceCents: null, isAvailable: true, bottleSizeMl: 750, imageUrl: null,
+      });
+
+      onLineWineSelect(q.invIdx, q.lineIdx, wine.id);
+      setQuickCreate(null);
+    } catch (e) {
+      setQuickCreate((s) => s && ({ ...s, busy: false, err: String((e as Error).message || e) }));
+    }
   }
 
   return (
@@ -387,8 +574,38 @@ export function AdminInvoiceUploadPage() {
               </div>
             )}
 
+            {/* Alert giacenza negativa */}
+            {negativeAlert.length > 0 && (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+                <div className="font-medium mb-2">Attenzione: giacenza insufficiente per {negativeAlert.length} vino{negativeAlert.length > 1 ? "i" : ""}</div>
+                <ul className="list-disc list-inside space-y-0.5 text-xs">
+                  {negativeAlert.map((msg, i) => <li key={i}>{msg}</li>)}
+                </ul>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    className="text-xs px-3 py-1.5 rounded-lg border border-red-300 bg-white hover:bg-red-50 transition"
+                    onClick={() => setNegativeAlert([])}
+                  >
+                    Torna alla review
+                  </button>
+                  <button
+                    className="text-xs px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 transition"
+                    onClick={() => onConfirm(true)}
+                  >
+                    Salva comunque
+                  </button>
+                </div>
+              </div>
+            )}
+
             {invoices.map((inv, invIdx) => {
               const invIncluded = inv.lines.filter((l) => l.included).length;
+              const existingMovements = movements.data || [];
+              const isDuplicate = !!inv.header.invoiceNumber.trim() &&
+                existingMovements.some((m) =>
+                  m.invoiceNumber?.trim().toLowerCase() === inv.header.invoiceNumber.trim().toLowerCase() &&
+                  m.supplierOrCustomer?.trim().toLowerCase() === inv.header.supplierOrCustomer.trim().toLowerCase()
+                );
               return (
                 <div key={invIdx} className="card-surface rounded-2xl p-6 grid gap-5">
                   {/* Invoice label */}
@@ -401,9 +618,16 @@ export function AdminInvoiceUploadPage() {
                         {inv.fileName}
                       </div>
                     </div>
-                    <span className="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium bg-black/[0.05] text-neutral-600">
-                      {invIncluded} / {inv.lines.length} righe
-                    </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {isDuplicate && (
+                        <span className="rounded-full px-2.5 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200">
+                          già caricata
+                        </span>
+                      )}
+                      <span className="rounded-full px-2.5 py-0.5 text-xs font-medium bg-black/[0.05] text-neutral-600">
+                        {invIncluded} / {inv.lines.length} righe
+                      </span>
+                    </div>
                   </div>
 
                   {/* Header fields */}
@@ -474,18 +698,176 @@ export function AdminInvoiceUploadPage() {
                               </div>
                               <div>
                                 <label className="text-xs text-neutral-600 tracking-wide">ABBINA AL CATALOGO</label>
-                                <Select
-                                  value={line.wineId}
-                                  onChange={(e) => onLineWineSelect(invIdx, lineIdx, e.target.value)}
-                                  disabled={!line.included}
-                                >
-                                  <option value="">— nessun abbinamento —</option>
-                                  {(wines.data || []).map((w) => (
-                                    <option key={w.id} value={w.id}>
-                                      {w.name}{w.vintage ? ` ${w.vintage}` : ""}
-                                    </option>
-                                  ))}
-                                </Select>
+                                {line.matchScore > 0 && (
+                                  <div className={`mb-1 flex items-center gap-1.5 text-xs ${line.matchScore >= 0.7 ? "text-emerald-600" : "text-amber-600"}`}>
+                                    <span className={`inline-block w-1.5 h-1.5 rounded-full ${line.matchScore >= 0.7 ? "bg-emerald-500" : "bg-amber-400"}`} />
+                                    {line.matchScore >= 0.7 ? "abbinamento sicuro" : "abbinamento incerto — verifica"}
+                                    <span className="text-neutral-400">({Math.round(line.matchScore * 100)}%)</span>
+                                  </div>
+                                )}
+                                <div className="flex gap-2 items-start">
+                                  <Select
+                                    value={line.wineId}
+                                    onChange={(e) => {
+                                      onLineWineSelect(invIdx, lineIdx, e.target.value);
+                                      if (quickCreate?.invIdx === invIdx && quickCreate?.lineIdx === lineIdx) {
+                                        setQuickCreate(null);
+                                      }
+                                    }}
+                                    disabled={!line.included}
+                                  >
+                                    <option value="">— nessun abbinamento —</option>
+                                    {(wines.data || []).map((w) => (
+                                      <option key={w.id} value={w.id}>
+                                        {w.name}{w.vintage ? ` ${w.vintage}` : ""}
+                                      </option>
+                                    ))}
+                                  </Select>
+                                  {line.included && !line.wineId && !(quickCreate?.invIdx === invIdx && quickCreate?.lineIdx === lineIdx) && (
+                                    <button
+                                      type="button"
+                                      className="shrink-0 mt-px rounded-lg border border-black/10 bg-black/[0.03] px-2.5 py-1.5 text-xs hover:bg-black/[0.06] transition"
+                                      onClick={() => openQuickCreate(invIdx, lineIdx, line.wineName, inv.header.supplierOrCustomer)}
+                                    >
+                                      + Crea
+                                    </button>
+                                  )}
+                                </div>
+                                {/* Mini-form inline per creare vino / produttore / zona */}
+                                {quickCreate?.invIdx === invIdx && quickCreate?.lineIdx === lineIdx && (
+                                  <div className="mt-2 rounded-xl border border-black/10 bg-black/[0.03] p-3 grid gap-3">
+                                    <div className="text-xs font-medium text-neutral-700 tracking-wide">NUOVO VINO</div>
+
+                                    {/* Nome vino */}
+                                    <div>
+                                      <label className="text-xs text-neutral-500">NOME</label>
+                                      <Input
+                                        value={quickCreate.name}
+                                        onChange={(e) => setQuickCreate((q) => q && ({ ...q, name: e.target.value }))}
+                                      />
+                                    </div>
+
+                                    {/* Tipo + Annata */}
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div>
+                                        <label className="text-xs text-neutral-500">TIPO</label>
+                                        <Select
+                                          value={quickCreate.type}
+                                          onChange={(e) => setQuickCreate((q) => q && ({ ...q, type: e.target.value as WineType }))}
+                                        >
+                                          <option value="white">Bianco</option>
+                                          <option value="red">Rosso</option>
+                                          <option value="rose">Rosato</option>
+                                          <option value="orange">Orange</option>
+                                          <option value="sparkling">Frizzante</option>
+                                          <option value="other">Altro</option>
+                                        </Select>
+                                      </div>
+                                      <div>
+                                        <label className="text-xs text-neutral-500">ANNATA</label>
+                                        <Input
+                                          placeholder="es. 2023"
+                                          value={quickCreate.vintage}
+                                          onChange={(e) => setQuickCreate((q) => q && ({ ...q, vintage: e.target.value }))}
+                                          inputMode="numeric"
+                                        />
+                                      </div>
+                                    </div>
+
+                                    {/* Azienda */}
+                                    <div>
+                                      <label className="text-xs text-neutral-500">AZIENDA</label>
+                                      <Select
+                                        value={quickCreate.producerId}
+                                        onChange={(e) => setQuickCreate((q) => q && ({ ...q, producerId: e.target.value }))}
+                                      >
+                                        <option value="">— scegli —</option>
+                                        {(producers.data || []).map((p) => (
+                                          <option key={p.id} value={p.id}>{p.name}</option>
+                                        ))}
+                                        <option value="__new__">＋ Crea nuova azienda…</option>
+                                      </Select>
+                                    </div>
+
+                                    {/* Nuovo produttore */}
+                                    {quickCreate.producerId === "__new__" && (
+                                      <div className="rounded-lg border border-black/10 bg-white/60 p-3 grid gap-2">
+                                        <div className="text-xs font-medium text-neutral-600 tracking-wide">NUOVA AZIENDA</div>
+                                        <div>
+                                          <label className="text-xs text-neutral-500">NOME</label>
+                                          <Input
+                                            value={quickCreate.newProducerName}
+                                            onChange={(e) => setQuickCreate((q) => q && ({ ...q, newProducerName: e.target.value }))}
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="text-xs text-neutral-500">ZONA</label>
+                                          <Select
+                                            value={quickCreate.newProducerZoneId}
+                                            onChange={(e) => setQuickCreate((q) => q && ({ ...q, newProducerZoneId: e.target.value }))}
+                                          >
+                                            <option value="">— scegli zona —</option>
+                                            {(zones.data || []).map((z) => (
+                                              <option key={z.id} value={z.id}>
+                                                {z.name} — {z.country}
+                                              </option>
+                                            ))}
+                                            <option value="__new__">＋ Crea nuova zona…</option>
+                                          </Select>
+                                        </div>
+
+                                        {/* Nuova zona */}
+                                        {quickCreate.newProducerZoneId === "__new__" && (
+                                          <div className="rounded-lg border border-black/10 bg-white/80 p-2 grid gap-2">
+                                            <div className="text-xs font-medium text-neutral-600 tracking-wide">NUOVA ZONA</div>
+                                            <div>
+                                              <label className="text-xs text-neutral-500">NOME</label>
+                                              <Input
+                                                placeholder="es. Penedès"
+                                                value={quickCreate.newZoneName}
+                                                onChange={(e) => setQuickCreate((q) => q && ({ ...q, newZoneName: e.target.value }))}
+                                              />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2">
+                                              <div>
+                                                <label className="text-xs text-neutral-500">PAESE</label>
+                                                <Input
+                                                  placeholder="es. Spagna"
+                                                  value={quickCreate.newZoneCountry}
+                                                  onChange={(e) => setQuickCreate((q) => q && ({ ...q, newZoneCountry: e.target.value }))}
+                                                />
+                                              </div>
+                                              <div>
+                                                <label className="text-xs text-neutral-500">REGIONE</label>
+                                                <Input
+                                                  placeholder="es. Catalunya"
+                                                  value={quickCreate.newZoneRegion}
+                                                  onChange={(e) => setQuickCreate((q) => q && ({ ...q, newZoneRegion: e.target.value }))}
+                                                />
+                                              </div>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+
+                                    {quickCreate.err && (
+                                      <div className="text-xs text-red-600">{quickCreate.err}</div>
+                                    )}
+                                    <div className="flex gap-2 justify-end">
+                                      <button
+                                        type="button"
+                                        className="text-xs text-neutral-500 px-2 py-1 rounded hover:bg-black/[0.05]"
+                                        onClick={() => setQuickCreate(null)}
+                                      >
+                                        Annulla
+                                      </button>
+                                      <Button onClick={submitQuickCreate} disabled={quickCreate.busy}>
+                                        {quickCreate.busy ? "Salvataggio…" : "Crea"}
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                               <div className="grid grid-cols-2 gap-2">
                                 <div>
@@ -534,7 +916,7 @@ export function AdminInvoiceUploadPage() {
               >
                 ← Ricarica
               </button>
-              <Button onClick={onConfirm} disabled={busy || totalIncluded === 0}>
+              <Button onClick={() => onConfirm(false)} disabled={busy || totalIncluded === 0}>
                 {busy
                   ? "Salvataggio…"
                   : `Conferma e salva (${totalIncluded} moviment${totalIncluded === 1 ? "o" : "i"})`}

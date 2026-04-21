@@ -879,7 +879,8 @@ export async function adminRoutes(app: FastifyInstance) {
     const baseUrl = (process.env.PUBLIC_UPLOAD_BASE_URL || "http://localhost:3001/uploads").replace(/\/$/, "");
     const invoiceFileUrl = `${baseUrl}/${filename}`;
 
-    const extracted = await extractInvoice(apiKey, buf, file.mimetype);
+    const ownerName = process.env.OWNER_NAME ?? "il titolare";
+    const extracted = await extractInvoice(apiKey, ownerName, buf, file.mimetype);
 
     return { ...GeminiExtractedSchema.parse(extracted), invoiceFileUrl };
   });

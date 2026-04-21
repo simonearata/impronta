@@ -720,14 +720,19 @@ export async function adminExtractInvoice(file: File): Promise<ExtractedInvoice>
     }
     const base64 = btoa(binary);
 
+    const ownerName = (import.meta.env.VITE_OWNER_NAME as string | undefined) ?? "il titolare";
     const PROMPT = `Analizza questa fattura o documento commerciale ed estrai i dati strutturati.
+
+CONTESTO: il titolare di questo sistema è "${ownerName}". Determina il tipo dal suo punto di vista:
+- "in" se la fattura è emessa da un fornitore VERSO ${ownerName} (acquisto, bottiglie in entrata)
+- "out" se la fattura è emessa DA ${ownerName} verso un cliente (vendita, bottiglie in uscita)
 
 Restituisci SOLO un oggetto JSON valido (nessun testo aggiuntivo, nessun markdown):
 {
-  "type": "in" se è un acquisto da fornitore (entrata merce) oppure "out" se è una vendita a cliente (uscita merce),
+  "type": "in" oppure "out" come descritto sopra,
   "invoiceNumber": "numero fattura o DDT" (null se assente),
   "invoiceDate": "data in formato YYYY-MM-DD" (null se assente),
-  "supplierOrCustomer": "ragione sociale fornitore o cliente" (null se assente),
+  "supplierOrCustomer": "ragione sociale del fornitore se type=in, oppure del cliente se type=out" (null se assente),
   "lines": [
     {
       "wineName": "nome completo del vino con annata se presente",
