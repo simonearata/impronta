@@ -431,6 +431,7 @@ export const home = {
     "prod_borgogno",
     "prod_chaiuva",
   ],
+  featuredWineIds: [],
 } satisfies HomeContent;
 
 export const movements: InventoryMovement[] = [
