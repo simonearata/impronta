@@ -26,6 +26,7 @@ function ensure(): HomeContent {
       "Curare una selezione editoriale, con testi chiari e un archivio navigabile. Una mappa semplice per orientarsi tra zone, aziende e referenze.",
     featuredZoneIds: [],
     featuredProducerIds: [],
+    featuredWineIds: [],
   };
 
   localStorage.setItem(KEY, JSON.stringify(init));

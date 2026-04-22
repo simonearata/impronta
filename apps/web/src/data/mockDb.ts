@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   HomeContentSchema,
+  InventoryMovementSchema,
   ProducerSchema,
   SiteSettingsSchema,
   WineSchema,
@@ -8,13 +9,14 @@ import {
 } from "../shared/schemas";
 import {
   home as seedHome,
+  movements as seedMovements,
   producers as seedProducers,
   settings as seedSettings,
   wines as seedWines,
   zones as seedZones,
 } from "./mock";
 
-export const MOCK_DB_KEY = "impronta_mock_db_v1";
+export const MOCK_DB_KEY = "impronta_mock_db_v2";
 
 export const AdminDbSchema = z.object({
   zones: z.array(ZoneSchema),
@@ -22,6 +24,7 @@ export const AdminDbSchema = z.object({
   wines: z.array(WineSchema),
   home: HomeContentSchema,
   settings: SiteSettingsSchema,
+  movements: z.array(InventoryMovementSchema),
 });
 
 export type AdminDb = z.infer<typeof AdminDbSchema>;
@@ -42,6 +45,7 @@ export function readDb(): AdminDb {
     wines: seedWines,
     home: seedHome,
     settings: seedSettings,
+    movements: seedMovements,
   };
 
   localStorage.setItem(MOCK_DB_KEY, JSON.stringify(seeded));

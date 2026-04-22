@@ -29,7 +29,7 @@ export async function buildServer(env: Env) {
   });
 
   await app.register(multipart, {
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max
+    limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB (per PDF fatture)
   });
 
   const uploadDirAbs = resolve(env.UPLOAD_DIR);

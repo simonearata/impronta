@@ -194,6 +194,22 @@ export async function publicRoutes(app: FastifyInstance) {
     return z.array(WineSchema).parse(rows.map(wineOut));
   });
 
+  app.get("/wines/stocks", async () => {
+    const movements = await prisma.inventoryMovement.findMany({
+      where: { wineId: { not: null } },
+      select: { wineId: true, type: true, quantity: true },
+    });
+    const stocks: Record<string, number> = {};
+    for (const m of movements) {
+      if (!m.wineId) continue;
+      if (!(m.wineId in stocks)) stocks[m.wineId] = 0;
+      if (m.type === "in") stocks[m.wineId] += m.quantity;
+      else if (m.type === "out") stocks[m.wineId] -= m.quantity;
+      else stocks[m.wineId] += m.quantity;
+    }
+    return stocks;
+  });
+
   app.get("/wines/:slug", async (req) => {
     const { slug } = SlugParamsSchema.parse((req as any).params);
 
@@ -210,10 +226,24 @@ export async function publicRoutes(app: FastifyInstance) {
     });
     if (!zone) throw new Error("Zona mancante");
 
+    const movements = await prisma.inventoryMovement.findMany({
+      where: { wineId: wine.id },
+      select: { type: true, quantity: true },
+    });
+    const stock =
+      movements.length > 0
+        ? movements.reduce((acc: number, m) => {
+            if (m.type === "in") return acc + m.quantity;
+            if (m.type === "out") return acc - m.quantity;
+            return acc + m.quantity;
+          }, 0)
+        : null;
+
     const out = {
       wine: wineOut(wine),
       producer: producerOut(producer),
       zone: zoneOut(zone),
+      stock,
     };
 
     return WineDetailSchema.parse(out);

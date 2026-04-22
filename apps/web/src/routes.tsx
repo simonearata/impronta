@@ -22,6 +22,9 @@ import { AdminWinesListPage } from "./pages/AdminWinesListPage";
 import { AdminWineEditPage } from "./pages/AdminWineEditPage";
 import { AdminHomeEditorPage } from "./pages/AdminHomeEditorPage";
 import { AdminContactsEditorPage } from "./pages/AdminContactsEditorPage";
+import { MyProjectPage } from "./pages/MyProjectPage";
+import { AdminInventoryPage } from "./pages/AdminInventoryPage";
+import { AdminInvoiceUploadPage } from "./pages/AdminInvoiceUploadPage";
 import { RequireAdmin } from "./auth/RequireAdmin";
 
 export const router = createBrowserRouter([
@@ -44,6 +47,8 @@ export const router = createBrowserRouter([
       { path: "vini/:id", element: <AdminWineEditPage /> },
       { path: "home", element: <AdminHomeEditorPage /> },
       { path: "contatti", element: <AdminContactsEditorPage /> },
+      { path: "magazzino", element: <AdminInventoryPage /> },
+      { path: "magazzino/nuova-fattura", element: <AdminInvoiceUploadPage /> },
     ],
   },
   {
@@ -51,6 +56,7 @@ export const router = createBrowserRouter([
     errorElement: <NotFoundPage />,
     children: [
       { path: "/", element: <HomePage /> },
+      { path: "/my-project", element: <MyProjectPage /> },
       { path: "/zone", element: <ZonesPage /> },
       { path: "/zone/:slug", element: <ZoneDetailPage /> },
       { path: "/aziende", element: <ProducersPage /> },

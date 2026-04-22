@@ -3,6 +3,8 @@ import { z } from "zod";
 
 import type {
   HomeContent,
+  InventoryMovement,
+  InventoryMovementInput,
   Producer,
   SiteSettings,
   Wine,
@@ -12,6 +14,8 @@ import type {
 
 import {
   HomeContentSchema,
+  InventoryMovementInputSchema,
+  InventoryMovementSchema,
   ProducerSchema,
   SiteSettingsSchema,
   WineSchema,
@@ -21,6 +25,7 @@ import {
 
 import {
   home as seedHome,
+  movements as seedMovements,
   producers as seedProducers,
   settings as seedSettings,
   wines as seedWines,
@@ -28,13 +33,13 @@ import {
 } from "./mock";
 
 import { DATA_SOURCE as MODE } from "./config";
-import { adminRequest } from "../auth/adminApi";
+import { adminRequest, adminUploadRequest } from "../auth/adminApi";
 
 /* =========================
    MOCK DB (localStorage)
    ========================= */
 
-const KEY = "impronta_mock_db_v1";
+const KEY = "impronta_mock_db_v2";
 
 const AdminDbSchema = z.object({
   zones: z.array(ZoneSchema),
@@ -42,6 +47,7 @@ const AdminDbSchema = z.object({
   wines: z.array(WineSchema),
   home: HomeContentSchema,
   settings: SiteSettingsSchema,
+  movements: z.array(InventoryMovementSchema),
 });
 
 type AdminDb = z.infer<typeof AdminDbSchema>;
@@ -72,6 +78,7 @@ function readDb(): AdminDb {
     wines: seedWines,
     home: seedHome,
     settings: seedSettings,
+    movements: seedMovements,
   };
 
   localStorage.setItem(KEY, JSON.stringify(seeded));
@@ -573,6 +580,206 @@ export function useAdminSettings() {
 }
 export function useAdminContactLeads() {
   return useSWR("admin:contact-leads", adminListContactLeads);
+}
+
+/* =========================
+   INVENTORY MOVEMENTS
+   ========================= */
+
+export function calculateStock(
+  movements: InventoryMovement[],
+  wineId: string,
+): number {
+  return movements
+    .filter((m) => m.wineId === wineId)
+    .reduce((acc, m) => {
+      if (m.type === "in") return acc + m.quantity;
+      if (m.type === "out") return acc - m.quantity;
+      return acc + m.quantity; // adjustment (può essere negativo)
+    }, 0);
+}
+
+export async function adminListMovements(): Promise<InventoryMovement[]> {
+  if (MODE === "api") {
+    return adminRequest(
+      z.array(InventoryMovementSchema),
+      "/admin/inventory",
+    );
+  }
+  return [...readDb().movements].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
+}
+
+export async function adminCreateMovement(
+  input: InventoryMovementInput,
+): Promise<InventoryMovement> {
+  if (MODE === "api") {
+    return adminRequest(InventoryMovementSchema, "/admin/inventory", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+  const parsed = InventoryMovementInputSchema.parse(input);
+  const db = readDb();
+  const movement: InventoryMovement = {
+    ...parsed,
+    id: newId(),
+    createdAt: now(),
+    updatedAt: now(),
+  };
+  db.movements.push(movement);
+  writeDb(db);
+  return movement;
+}
+
+export async function adminUpdateMovement(
+  id: string,
+  input: InventoryMovementInput,
+): Promise<InventoryMovement> {
+  if (MODE === "api") {
+    return adminRequest(
+      InventoryMovementSchema,
+      `/admin/inventory/${encodeURIComponent(id)}`,
+      { method: "PUT", body: JSON.stringify(input) },
+    );
+  }
+  const parsed = InventoryMovementInputSchema.parse(input);
+  const db = readDb();
+  const idx = db.movements.findIndex((m) => m.id === id);
+  if (idx === -1) throw new Error("Movimento non trovato");
+  db.movements[idx] = { ...db.movements[idx], ...parsed, updatedAt: now() };
+  writeDb(db);
+  return db.movements[idx];
+}
+
+export async function adminDeleteMovement(id: string): Promise<void> {
+  if (MODE === "api") {
+    await adminRequest(z.unknown(), `/admin/inventory/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+    return;
+  }
+  const db = readDb();
+  db.movements = db.movements.filter((m) => m.id !== id);
+  writeDb(db);
+}
+
+export function useAdminMovements() {
+  return useSWR("admin:movements", adminListMovements);
+}
+
+export type ExtractedInvoiceLine = {
+  wineName: string;
+  quantity: number;
+  unitPriceCents: number | null;
+  notes: string | null;
+};
+
+export type ExtractedInvoice = {
+  type: InventoryMovement["type"];
+  invoiceNumber: string | null;
+  invoiceDate: string | null;
+  supplierOrCustomer: string | null;
+  invoiceFileUrl: string | null;
+  lines: ExtractedInvoiceLine[];
+};
+
+const ExtractedInvoiceSchema = z.object({
+  type: z.enum(["in", "out", "adjustment"]),
+  invoiceNumber: z.string().nullable(),
+  invoiceDate: z.string().nullable(),
+  supplierOrCustomer: z.string().nullable(),
+  invoiceFileUrl: z.string().nullable(),
+  lines: z.array(z.object({
+    wineName: z.string(),
+    quantity: z.number(),
+    unitPriceCents: z.number().nullable(),
+    notes: z.string().nullable(),
+  })).min(1),
+});
+
+export async function adminExtractInvoice(file: File): Promise<ExtractedInvoice> {
+  if (MODE === "api") {
+    const fd = new FormData();
+    fd.append("file", file);
+    return adminUploadRequest(ExtractedInvoiceSchema, "/admin/inventory/extract", fd);
+  }
+
+  const geminiKey = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
+  if (geminiKey) {
+    const { GoogleGenerativeAI } = await import("@google/generative-ai");
+    const genAI = new GoogleGenerativeAI(geminiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+    const buffer = await file.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    let binary = "";
+    for (let i = 0; i < bytes.length; i += 8192) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+    }
+    const base64 = btoa(binary);
+
+    const ownerName = (import.meta.env.VITE_OWNER_NAME as string | undefined) ?? "il titolare";
+    const PROMPT = `Analizza questa fattura o documento commerciale ed estrai i dati strutturati.
+
+CONTESTO: il titolare di questo sistema è "${ownerName}". Determina il tipo dal suo punto di vista:
+- "in" se la fattura è emessa da un fornitore VERSO ${ownerName} (acquisto, bottiglie in entrata)
+- "out" se la fattura è emessa DA ${ownerName} verso un cliente (vendita, bottiglie in uscita)
+
+Restituisci SOLO un oggetto JSON valido (nessun testo aggiuntivo, nessun markdown):
+{
+  "type": "in" oppure "out" come descritto sopra,
+  "invoiceNumber": "numero fattura o DDT" (null se assente),
+  "invoiceDate": "data in formato YYYY-MM-DD" (null se assente),
+  "supplierOrCustomer": "ragione sociale del fornitore se type=in, oppure del cliente se type=out" (null se assente),
+  "lines": [
+    {
+      "wineName": "nome completo del vino con annata se presente",
+      "quantity": numero intero di bottiglie,
+      "unitPriceCents": prezzo unitario NETTO in centesimi dopo eventuali sconti (intero, null se assente),
+      "notes": "eventuali note: gradazione, lotto, codice" (null se assente)
+    }
+  ]
+}
+REGOLE: includi SOLO vini/bevande alcoliche. Escludi KEG, imballi, trasporti. La quantità è in bottiglie.`;
+
+    const result = await model.generateContent([
+      { inlineData: { mimeType: file.type, data: base64 } },
+      PROMPT,
+    ]);
+
+    const raw = result.response.text().trim()
+      .replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
+
+    const parsed = JSON.parse(raw);
+    return ExtractedInvoiceSchema.parse({ ...parsed, invoiceFileUrl: null });
+  }
+
+  // Mock: dati finti
+  await new Promise((r) => setTimeout(r, 1200));
+  return {
+    type: "in",
+    invoiceNumber: `FT-MOCK-${Date.now().toString().slice(-4)}`,
+    invoiceDate: new Date().toISOString().slice(0, 10),
+    supplierOrCustomer: "Fornitore Mock Srl",
+    invoiceFileUrl: null,
+    lines: [
+      { wineName: "Tinc Set 2024", quantity: 12, unitPriceCents: 750, notes: null },
+      { wineName: "Baudili Orange 2025", quantity: 6, unitPriceCents: 800, notes: null },
+      { wineName: "Baudili Blanc 2024", quantity: 6, unitPriceCents: 725, notes: null },
+    ],
+  };
+}
+
+export function useAdminWineStock(wineId: string | undefined) {
+  return useSWR(
+    wineId ? `admin:stock:${wineId}` : null,
+    async () => {
+      const all = await adminListMovements();
+      return calculateStock(all, wineId!);
+    },
+  );
 }
 
 export function wineTypeOptions(): Array<{ value: WineType; label: string }> {

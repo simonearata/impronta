@@ -170,6 +170,26 @@ export function WineDetailPage() {
                       label="Prezzo"
                       value={formatPriceEUR(wine.priceCents) ?? "—"}
                     />
+                    {data.data?.stock != null && (
+                      <Row
+                        label="Bottiglie in magazzino"
+                        value={
+                          <span
+                            className={
+                              data.data.stock <= 0
+                                ? "text-red-600 font-medium"
+                                : data.data.stock <= 5
+                                  ? "text-amber-600 font-medium"
+                                  : ""
+                            }
+                          >
+                            {data.data.stock <= 0
+                              ? "Esaurito"
+                              : `${data.data.stock} ${data.data.stock === 1 ? "bottiglia" : "bottiglie"}`}
+                          </span>
+                        }
+                      />
+                    )}
                   </div>
                 </div>
               </div>

@@ -9,6 +9,7 @@
     "typecheck": "pnpm --filter @impronta/web typecheck"
   },
   "dependencies": {
-    "@fastify/multipart": "^9.4.0"
+    "@fastify/multipart": "^9.4.0",
+    "jszip": "^3.10.1"
   }
 }

@@ -65,6 +65,7 @@ export const HomeContentSchema = z.object({
   mission: z.string(),
   featuredZoneIds: z.array(z.string()),
   featuredProducerIds: z.array(z.string()),
+  featuredWineIds: z.array(z.string()).default([]),
 });
 
 export const SiteSettingsSchema = z.object({
@@ -98,6 +99,53 @@ export const WineDetailSchema = z.object({
   wine: WineSchema,
   producer: ProducerSchema,
   zone: ZoneSchema,
+  stock: z.number().nullable().optional(),
 });
 
 export const OkSchema = z.object({ ok: z.literal(true) });
+
+export const MovementTypeSchema = z.enum(["in", "out", "adjustment"]);
+
+export const InventoryMovementSchema = z.object({
+  id: z.string(),
+  wineId: z.string().nullable(),
+  wineName: z.string(),
+  type: MovementTypeSchema,
+  quantity: z.number(),
+  unitPriceCents: z.number().int().nullable(),
+  invoiceNumber: z.string().nullable(),
+  invoiceDate: z.string().nullable(),
+  supplierOrCustomer: z.string().nullable(),
+  invoiceFileUrl: z.string().nullable(),
+  notes: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export const InventoryMovementInputSchema = z.object({
+  wineId: z.string().nullable().optional(),
+  wineName: z.string().min(1),
+  type: MovementTypeSchema,
+  quantity: z.number().refine((v) => v !== 0, "La quantità non può essere zero"),
+  unitPriceCents: z.number().int().positive().nullable().optional(),
+  invoiceNumber: z.string().nullable().optional(),
+  invoiceDate: z.string().nullable().optional(),
+  supplierOrCustomer: z.string().nullable().optional(),
+  invoiceFileUrl: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+});
+
+export const GeminiLineSchema = z.object({
+  wineName: z.string(),
+  quantity: z.number().positive(),
+  unitPriceCents: z.number().int().nullable(),
+  notes: z.string().nullable(),
+});
+
+export const GeminiExtractedSchema = z.object({
+  type: MovementTypeSchema,
+  invoiceNumber: z.string().nullable(),
+  invoiceDate: z.string().nullable(),
+  supplierOrCustomer: z.string().nullable(),
+  lines: z.array(GeminiLineSchema).min(1),
+});

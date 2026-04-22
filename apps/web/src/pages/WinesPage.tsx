@@ -6,7 +6,7 @@ import { Input } from "../components/Input";
 import { Meta } from "../components/Meta";
 import { Select } from "../components/Select";
 import { Skeleton } from "../components/Skeleton";
-import { useProducers, useWines, useZones } from "../data";
+import { useProducers, useWineStocks, useWines, useZones } from "../data";
 import type { WineType } from "../shared/types";
 import { cn, formatPriceEUR, wineTypeLabel } from "../shared/utils";
 import { useDebouncedValue } from "../shared/useDebouncedValue";
@@ -53,6 +53,7 @@ export function WinesPage() {
 
   const zones = useZones({});
   const producers = useProducers({ zone: zone || undefined });
+  const stocks = useWineStocks();
   const list = useWines({
     zone: zone || undefined,
     producer: producer || undefined,
@@ -218,8 +219,17 @@ export function WinesPage() {
                           {w.vintage ? ` · ${w.vintage}` : ""}
                         </div>
                       </div>
-                      <div className="text-xs text-neutral-700 text-right">
-                        {w.isAvailable ? "Disponibile" : "Non disponibile"}
+                      <div className="text-xs text-neutral-700 text-right shrink-0">
+                        {(() => {
+                          const stock = stocks.data?.[w.id];
+                          if (stock != null && stock <= 0) {
+                            return <span className="rounded-full px-2 py-0.5 bg-red-100 text-red-700 font-medium">Esaurito</span>;
+                          }
+                          if (stock != null && stock <= 5) {
+                            return <span className="rounded-full px-2 py-0.5 bg-amber-100 text-amber-700 font-medium">Ultime {stock}</span>;
+                          }
+                          return w.isAvailable ? "Disponibile" : "Non disponibile";
+                        })()}
                         {w.priceCents != null ? (
                           <div className="mt-1">
                             {formatPriceEUR(w.priceCents)}

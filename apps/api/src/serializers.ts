@@ -1,5 +1,6 @@
 import type {
   HomeContent,
+  InventoryMovement,
   Producer,
   SiteSettings,
   Wine,
@@ -52,6 +53,20 @@ export function homeOut(h: HomeContent) {
     mission: h.mission,
     featuredZoneIds: h.featuredZoneIds,
     featuredProducerIds: h.featuredProducerIds,
+    featuredWineIds: h.featuredWineIds,
+  };
+}
+
+export function movementOut(m: InventoryMovement) {
+  return {
+    ...toIso(m),
+    wineId: m.wineId ?? null,
+    unitPriceCents: m.unitPriceCents ?? null,
+    invoiceNumber: m.invoiceNumber ?? null,
+    invoiceDate: m.invoiceDate ?? null,
+    supplierOrCustomer: m.supplierOrCustomer ?? null,
+    invoiceFileUrl: m.invoiceFileUrl ?? null,
+    notes: m.notes ?? null,
   };
 }
 

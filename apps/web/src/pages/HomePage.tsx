@@ -1,30 +1,50 @@
+import { useRef } from "react";
 import { Link } from "react-router-dom";
 import { Container } from "../components/Container";
 import { Meta } from "../components/Meta";
 import { Skeleton } from "../components/Skeleton";
-import { useHome, useProducers, useZones } from "../data";
-import type { Zone, Producer } from "../shared/types";
+import { useHome, useProducers, useWines, useZones } from "../data";
+import type { Zone, Producer, Wine } from "../shared/types";
 
 function pickByIds<T extends { id: string }>(items: T[], ids: string[]) {
   const map = new Map(items.map((x) => [x.id, x] as const));
   return ids.map((id) => map.get(id)).filter(Boolean) as T[];
 }
 
+const wineTypeBg: Record<string, string> = {
+  white: "bg-amber-50",
+  red: "bg-red-100",
+  orange: "bg-orange-100",
+  rosé: "bg-pink-100",
+  sparkling: "bg-stone-100",
+};
+
+const wineTypeLabel: Record<string, string> = {
+  white: "Bianco",
+  red: "Rosso",
+  orange: "Orange",
+  rosé: "Rosé",
+  sparkling: "Spumante",
+};
+
 export function HomePage() {
   const home = useHome();
   const zones = useZones({});
   const producers = useProducers({});
+  const wines = useWines({});
+  const wineScrollRef = useRef<HTMLDivElement>(null);
 
   const allZones = zones.data || [];
   const allProducers = producers.data || [];
+  const allWines = wines.data || [];
 
   const featuredZoneIds = home.data?.featuredZoneIds || [];
   const featuredProducerIds = home.data?.featuredProducerIds || [];
+  const featuredWineIds = home.data?.featuredWineIds || [];
 
   const pickedZones = featuredZoneIds.length
     ? pickByIds(allZones, featuredZoneIds)
     : [];
-
   const pickedProducers = featuredProducerIds.length
     ? pickByIds(allProducers, featuredProducerIds)
     : [];
@@ -32,118 +52,142 @@ export function HomePage() {
   const featuredZones = pickedZones.length ? pickedZones : allZones.slice(0, 3);
   const featuredProducers = pickedProducers.length
     ? pickedProducers
-    : allProducers.slice(0, 4);
+    : allProducers;
+
+  const pickedWines = featuredWineIds.length
+    ? pickByIds(allWines, featuredWineIds)
+    : [];
+  const featuredWines = pickedWines.length ? pickedWines : allWines;
+
+  function scrollWines(dir: number) {
+    wineScrollRef.current?.scrollBy({ left: dir * 220, behavior: "smooth" });
+  }
 
   return (
     <>
       <Meta title="Home" path="/" />
-      <section className="relative">
-        <div className="h-[72vh] min-h-[520px] w-full bg-gradient-to-b from-black/10 to-black/0 overflow-hidden">
-          {home.data?.heroImageUrl ? (
-            <img
-              src={home.data.heroImageUrl}
-              alt=""
-              className="w-full h-full object-cover"
-            />
+
+      {/* Intro */}
+      <section className="pt-16 pb-12">
+        <Container>
+          <div className="text-xs text-neutral-600 tracking-wide">
+            WINE PROJECT
+          </div>
+          <h1 className="mt-3 font-serif text-5xl tracking-tighter2 leading-[1.05]">
+            Impronta
+          </h1>
+          {home.isLoading ? (
+            <Skeleton className="mt-4 h-5 w-2/3" />
+          ) : home.data?.heroQuote ? (
+            <p className="mt-4 text-lg text-neutral-700 leading-relaxed max-w-2xl">
+              {home.data.heroQuote}
+            </p>
           ) : null}
-        </div>
-        <div className="absolute inset-0">
-          <Container className="h-full flex items-end pb-10">
-            <div className="max-w-2xl">
-              <div className="text-xs text-neutral-600 tracking-wide">
-                WINE PROJECT
-              </div>
-              <h1 className="mt-3 font-serif text-5xl tracking-tighter2 leading-[1.05]">
-                Impronta
-              </h1>
-              <div className="mt-4 text-lg text-neutral-800 leading-relaxed">
-                {home.isLoading ? (
-                  <Skeleton className="h-6 w-[90%]" />
-                ) : (
-                  home.data?.heroQuote
-                )}
-              </div>
-              <div className="mt-8 flex flex-wrap gap-3">
-                <Link
-                  className="focus-ring rounded-full px-4 py-2 text-sm bg-black/5 border border-black/10"
-                  to="/zone"
-                >
-                  Esplora le zone
-                </Link>
-                <Link
-                  className="focus-ring rounded-full px-4 py-2 text-sm border border-black/10 bg-black/5"
-                  to="/contatti"
-                >
-                  Contattaci
-                </Link>
-              </div>
-            </div>
-          </Container>
-        </div>
-      </section>
-
-      <section className="py-16">
-        <Container className="grid gap-10 md:grid-cols-3">
-          <div className="md:col-span-1">
-            <div className="text-xs text-neutral-600 tracking-wide">
-              MANIFESTO
-            </div>
-            <h2 className="mt-3 font-serif text-3xl tracking-tighter2 leading-tight">
-              Un ritmo calmo, informazioni chiare.
-            </h2>
-          </div>
-
-          <div className="md:col-span-2 grid gap-8">
-            <div className="card-surface rounded-2xl p-8">
-              <div className="text-xs text-neutral-600 tracking-wide">
-                STORY
-              </div>
-              <div className="mt-3 text-sm text-neutral-800 leading-relaxed">
-                {home.isLoading ? (
-                  <Skeleton className="h-16 w-full" />
-                ) : (
-                  home.data?.story
-                )}
-              </div>
-            </div>
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="card-surface rounded-2xl p-8">
-                <div className="text-xs text-neutral-600 tracking-wide">
-                  VISION
-                </div>
-                <div className="mt-3 text-sm text-neutral-800 leading-relaxed">
-                  {home.isLoading ? (
-                    <Skeleton className="h-16 w-full" />
-                  ) : (
-                    home.data?.vision
-                  )}
-                </div>
-              </div>
-              <div className="card-surface rounded-2xl p-8">
-                <div className="text-xs text-neutral-600 tracking-wide">
-                  MISSION
-                </div>
-                <div className="mt-3 text-sm text-neutral-800 leading-relaxed">
-                  {home.isLoading ? (
-                    <Skeleton className="h-16 w-full" />
-                  ) : (
-                    home.data?.mission
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
         </Container>
       </section>
 
-      <section className="pb-16">
+      {/* Wine photo carousel */}
+      <section className="pt-10 pb-16">
         <Container>
-          <div className="flex items-center justify-between gap-6 mt-6">
+          <div className="flex items-center justify-between gap-6">
+            <div>
+              <div className="text-xs text-neutral-600 tracking-wide">VINI</div>
+              <h2 className="mt-2 font-serif text-3xl tracking-tighter2">
+                I vini
+              </h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => scrollWines(-1)}
+                className="focus-ring rounded-full w-9 h-9 flex items-center justify-center border border-black/10 bg-black/5 text-neutral-700 hover:bg-black/10"
+                aria-label="Precedente"
+              >
+                ←
+              </button>
+              <button
+                onClick={() => scrollWines(1)}
+                className="focus-ring rounded-full w-9 h-9 flex items-center justify-center border border-black/10 bg-black/5 text-neutral-700 hover:bg-black/10"
+                aria-label="Successivo"
+              >
+                →
+              </button>
+              <Link
+                className="focus-ring rounded-full px-4 py-2 text-sm border border-black/10 bg-black/5 whitespace-nowrap"
+                to="/vini"
+              >
+                Vedi tutti
+              </Link>
+            </div>
+          </div>
+        </Container>
+
+        <div className="mx-auto w-full max-w-6xl overflow-visible">
+          <div
+            ref={wineScrollRef}
+            className="mt-6 flex gap-4 overflow-x-auto scroll-smooth snap-x snap-mandatory pb-4 px-5 sm:px-8"
+            style={{ scrollbarWidth: "none" }}
+          >
+          {(wines.isLoading
+            ? (Array.from({ length: 5 }) as unknown[])
+            : featuredWines
+          ).map((w, i) =>
+            wines.isLoading ? (
+              <div
+                key={i}
+                className="card-surface rounded-2xl overflow-hidden snap-start shrink-0 w-52"
+              >
+                <Skeleton className="h-52 w-full rounded-none" />
+                <div className="p-4">
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="mt-2 h-3 w-1/2" />
+                </div>
+              </div>
+            ) : (
+              <Link
+                key={(w as Wine).id}
+                to={`/vini/${(w as Wine).slug}`}
+                className="focus-ring card-surface rounded-2xl overflow-hidden snap-start shrink-0 w-52 block hover:bg-black/[0.02]"
+              >
+                <div
+                  className={`h-52 w-full ${(w as Wine).imageUrl ? "" : (wineTypeBg[(w as Wine).type] ?? "bg-neutral-100")} relative`}
+                >
+                  {(w as Wine).imageUrl ? (
+                    <img
+                      src={(w as Wine).imageUrl!}
+                      alt={(w as Wine).name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : null}
+                </div>
+                <div className="p-4">
+                  <div className="font-serif text-lg tracking-tighter2 leading-tight">
+                    {(w as Wine).name}
+                    {(w as Wine).vintage ? (
+                      <span className="ml-1 text-neutral-500 font-sans text-sm font-normal">
+                        {(w as Wine).vintage}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="mt-1 text-xs text-neutral-500">
+                    {wineTypeLabel[(w as Wine).type] ?? (w as Wine).type}
+                  </div>
+                </div>
+              </Link>
+            ),
+          )}
+          </div>
+        </div>
+      </section>
+
+      {/* Zone */}
+      <section className="pt-10 pb-16">
+        <Container>
+          <div className="flex items-center justify-between gap-6">
             <div>
               <div className="text-xs text-neutral-600 tracking-wide">ZONE</div>
-              <h3 className="mt-2 font-serif text-3xl tracking-tighter2">
+              <h2 className="mt-2 font-serif text-3xl tracking-tighter2">
                 Territori
-              </h3>
+              </h2>
             </div>
             <Link
               className="focus-ring rounded-full px-4 py-2 text-sm border border-black/10 bg-black/5"
@@ -186,16 +230,17 @@ export function HomePage() {
         </Container>
       </section>
 
-      <section className="pb-20">
+      {/* Producers */}
+      <section className="pt-10 pb-20">
         <Container>
-          <div className="flex items-center justify-between gap-6 mt-6">
+          <div className="flex items-center justify-between gap-6">
             <div>
               <div className="text-xs text-neutral-600 tracking-wide">
                 AZIENDE
               </div>
-              <h3 className="mt-2 font-serif text-3xl tracking-tighter2">
+              <h2 className="mt-2 font-serif text-3xl tracking-tighter2">
                 Aziende agricole
-              </h3>
+              </h2>
             </div>
             <Link
               className="focus-ring rounded-full px-4 py-2 text-sm border border-black/10 bg-black/5 whitespace-nowrap"

@@ -7,7 +7,10 @@ import bcrypt from "bcryptjs";
 import { Resend } from "resend";
 import { prisma } from "../src/prisma.js";
 import {
+  GeminiExtractedSchema,
   HomeContentSchema,
+  InventoryMovementInputSchema,
+  InventoryMovementSchema,
   OkSchema,
   ProducerSchema,
   SiteSettingsSchema,
@@ -17,11 +20,13 @@ import {
 } from "../src/schemas.js";
 import {
   homeOut,
+  movementOut,
   producerOut,
   settingsOut,
   wineOut,
   zoneOut,
 } from "../src/serializers.js";
+import { extractInvoice, extractInvoiceFromExcel, isExcelMime, isSupportedMime } from "../src/gemini.js";
 
 /* ────────────────────────────────────────
    AUTH (in-memory sessions)
@@ -218,7 +223,7 @@ export async function adminRoutes(app: FastifyInstance) {
     });
 
     return z.array(ContactLeadOutSchema).parse(
-      rows.map((r) => ({
+      rows.map((r: typeof rows[number]) => ({
         id: r.id,
         name: r.name,
         email: r.email,
@@ -696,30 +701,24 @@ export async function adminRoutes(app: FastifyInstance) {
 
     const payload = HomeContentSchema.parse((req as any).body);
 
+    const homeData = {
+      heroImageUrl: payload.heroImageUrl,
+      heroQuote: payload.heroQuote,
+      story: payload.story,
+      vision: payload.vision,
+      mission: payload.mission,
+      featuredZoneIds: payload.featuredZoneIds,
+      featuredProducerIds: payload.featuredProducerIds,
+      featuredWineIds: payload.featuredWineIds ?? [],
+    };
+
     await prisma.homeContent.upsert({
       where: { id: 1 },
-      create: {
-        id: 1,
-        heroImageUrl: payload.heroImageUrl,
-        heroQuote: payload.heroQuote,
-        story: payload.story,
-        vision: payload.vision,
-        mission: payload.mission,
-        featuredZoneIds: payload.featuredZoneIds,
-        featuredProducerIds: payload.featuredProducerIds,
-      },
-      update: {
-        heroImageUrl: payload.heroImageUrl,
-        heroQuote: payload.heroQuote,
-        story: payload.story,
-        vision: payload.vision,
-        mission: payload.mission,
-        featuredZoneIds: payload.featuredZoneIds,
-        featuredProducerIds: payload.featuredProducerIds,
-      },
+      create: { id: 1, ...homeData },
+      update: homeData,
     });
 
-    return HomeContentSchema.parse(payload);
+    return HomeContentSchema.parse(homeOut(await prisma.homeContent.findUniqueOrThrow({ where: { id: 1 } })));
   });
 
   /* ── UPLOAD IMMAGINI ────────────────── */
@@ -773,5 +772,125 @@ export async function adminRoutes(app: FastifyInstance) {
     const url = `${baseUrl}/${filename}`;
 
     return { ok: true, url };
+  });
+
+  /* ── INVENTORY ──────────────────────── */
+
+  app.get("/admin/inventory", async (req) => {
+    requireAdmin(req);
+    const rows = await prisma.inventoryMovement.findMany({
+      orderBy: { createdAt: "desc" },
+    });
+    return z.array(InventoryMovementSchema).parse(rows.map(movementOut));
+  });
+
+  app.post("/admin/inventory", async (req, reply) => {
+    requireAdmin(req);
+    const input = InventoryMovementInputSchema.parse((req as any).body);
+    const row = await prisma.inventoryMovement.create({
+      data: {
+        wineId: input.wineId ?? null,
+        wineName: input.wineName,
+        type: input.type as any,
+        quantity: input.quantity,
+        unitPriceCents: input.unitPriceCents ?? null,
+        invoiceNumber: input.invoiceNumber ?? null,
+        invoiceDate: input.invoiceDate ?? null,
+        supplierOrCustomer: input.supplierOrCustomer ?? null,
+        invoiceFileUrl: input.invoiceFileUrl ?? null,
+        notes: input.notes ?? null,
+      },
+    });
+    return reply.code(201).send(InventoryMovementSchema.parse(movementOut(row)));
+  });
+
+  app.put("/admin/inventory/:id", async (req, reply) => {
+    requireAdmin(req);
+    const { id } = IdParamSchema.parse((req as any).params);
+    const input = InventoryMovementInputSchema.parse((req as any).body);
+    const row = await prisma.inventoryMovement.update({
+      where: { id },
+      data: {
+        wineId: input.wineId ?? null,
+        wineName: input.wineName,
+        type: input.type as any,
+        quantity: input.quantity,
+        unitPriceCents: input.unitPriceCents ?? null,
+        invoiceNumber: input.invoiceNumber ?? null,
+        invoiceDate: input.invoiceDate ?? null,
+        supplierOrCustomer: input.supplierOrCustomer ?? null,
+        invoiceFileUrl: input.invoiceFileUrl ?? null,
+        notes: input.notes ?? null,
+      },
+    });
+    return InventoryMovementSchema.parse(movementOut(row));
+  });
+
+  app.delete("/admin/inventory/:id", async (req, reply) => {
+    requireAdmin(req);
+    const { id } = IdParamSchema.parse((req as any).params);
+    await prisma.inventoryMovement.delete({ where: { id } });
+    return reply.code(204).send();
+  });
+
+  app.get("/admin/inventory/stock/:wineId", async (req) => {
+    requireAdmin(req);
+    const { wineId } = z.object({ wineId: z.string().min(1) }).parse((req as any).params);
+    const rows = await prisma.inventoryMovement.findMany({ where: { wineId } });
+    const stock = rows.reduce((acc: number, m) => {
+      if (m.type === "in") return acc + m.quantity;
+      if (m.type === "out") return acc - m.quantity;
+      return acc + m.quantity;
+    }, 0);
+    return { wineId, stock };
+  });
+
+  /* ── EXTRACT FATTURA (Gemini) ───────── */
+
+  app.post("/admin/inventory/extract", async (req, reply) => {
+    requireAdmin(req);
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return reply.code(503).send({ ok: false, message: "GEMINI_API_KEY non configurata." });
+    }
+
+    const file = await (req as any).file();
+    if (!file) {
+      return reply.code(400).send({ ok: false, message: "Nessun file inviato." });
+    }
+
+    const isExcel = isExcelMime(file.mimetype);
+    if (!isSupportedMime(file.mimetype) && !isExcel) {
+      return reply.code(400).send({
+        ok: false,
+        message: `Formato non supportato: ${file.mimetype}. Usa JPEG, PNG, WebP, PDF o Excel (.xlsx/.xls).`,
+      });
+    }
+
+    const buf = await file.toBuffer();
+
+    // Salva il file per riferimento futuro
+    const extMap: Record<string, string> = {
+      "application/pdf": ".pdf",
+      "image/png": ".png",
+      "image/webp": ".webp",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
+      "application/vnd.ms-excel": ".xls",
+    };
+    const ext = extMap[file.mimetype] ?? ".jpg";
+    const filename = `invoice_${randomUUID()}${ext}`;
+    const uploadDir = resolve(process.env.UPLOAD_DIR || "./uploads");
+    await mkdir(uploadDir, { recursive: true });
+    await writeFile(resolve(uploadDir, filename), buf);
+    const baseUrl = (process.env.PUBLIC_UPLOAD_BASE_URL || "http://localhost:3001/uploads").replace(/\/$/, "");
+    const invoiceFileUrl = `${baseUrl}/${filename}`;
+
+    const ownerName = process.env.OWNER_NAME ?? "il titolare";
+    const extracted = isExcel
+      ? await extractInvoiceFromExcel(apiKey, ownerName, buf)
+      : await extractInvoice(apiKey, ownerName, buf, file.mimetype);
+
+    return { ...GeminiExtractedSchema.parse(extracted), invoiceFileUrl };
   });
 }

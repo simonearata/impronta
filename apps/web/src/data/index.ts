@@ -203,7 +203,18 @@ export async function getWineDetail(slug: string): Promise<WineDetail> {
   if (!producer) throw new Error("Azienda mancante");
   const zone = zoneById(db, producer.zoneId);
   if (!zone) throw new Error("Zona mancante");
-  return parse(WineDetailSchema, { wine, producer, zone });
+
+  const wineMovements = db.movements.filter((m) => m.wineId === wine.id);
+  const stock =
+    wineMovements.length > 0
+      ? wineMovements.reduce((acc, m) => {
+          if (m.type === "in") return acc + m.quantity;
+          if (m.type === "out") return acc - m.quantity;
+          return acc + m.quantity;
+        }, 0)
+      : null;
+
+  return parse(WineDetailSchema, { wine, producer, zone, stock });
 }
 
 export function useHome() {
@@ -242,4 +253,24 @@ export function useWines(params: ListWinesParams) {
 export function useWineDetail(slug: string | undefined) {
   const key = slug ? `wine:${slug}` : null;
   return useSWR(key, () => getWineDetail(slug!));
+}
+
+export async function getWineStocks(): Promise<Record<string, number>> {
+  if (DATA_SOURCE === "api")
+    return apiRequest(z.record(z.string(), z.number()), "/wines/stocks");
+
+  const db = readDb();
+  const stocks: Record<string, number> = {};
+  for (const m of db.movements) {
+    if (!m.wineId) continue;
+    if (!(m.wineId in stocks)) stocks[m.wineId] = 0;
+    if (m.type === "in") stocks[m.wineId] += m.quantity;
+    else if (m.type === "out") stocks[m.wineId] -= m.quantity;
+    else stocks[m.wineId] += m.quantity;
+  }
+  return stocks;
+}
+
+export function useWineStocks() {
+  return useSWR("wine-stocks", getWineStocks);
 }
