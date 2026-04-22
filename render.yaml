@@ -15,7 +15,7 @@ services:
     rootDir: apps/api
     buildCommand: |
       npm install -g pnpm &&
-      pnpm install &&
+      pnpm install --ignore-scripts &&
       pnpm db:generate &&
       pnpm build
     startCommand: |
