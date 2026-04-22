@@ -1,0 +1,1 @@
+ALTER TABLE "HomeContent" ADD COLUMN IF NOT EXISTS "featuredWineIds" TEXT[] NOT NULL DEFAULT '{}';
