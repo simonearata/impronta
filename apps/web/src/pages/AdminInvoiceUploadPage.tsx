@@ -80,6 +80,8 @@ function matchProducerId(
 const MIME_BY_EXT: Record<string, string> = {
   jpg: "image/jpeg", jpeg: "image/jpeg",
   png: "image/png", webp: "image/webp", pdf: "application/pdf",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  xls: "application/vnd.ms-excel",
 };
 const ALLOWED_MIME = new Set(Object.values(MIME_BY_EXT));
 
@@ -215,7 +217,7 @@ export function AdminInvoiceUploadPage() {
 
     const supported = expanded.filter((f) => ALLOWED_MIME.has(f.type));
     if (supported.length === 0) {
-      setExtractErr("Nessun file supportato trovato. Usa JPEG, PNG, WebP, PDF o ZIP.");
+      setExtractErr("Nessun file supportato trovato. Usa JPEG, PNG, WebP, PDF, Excel (.xlsx/.xls) o ZIP.");
       return;
     }
 
@@ -524,7 +526,7 @@ export function AdminInvoiceUploadPage() {
                 ref={fileInputRef}
                 type="file"
                 multiple
-                accept="image/jpeg,image/png,image/webp,application/pdf,.zip"
+                accept="image/jpeg,image/png,image/webp,application/pdf,.xlsx,.xls,.zip"
                 className="hidden"
                 onChange={onFileChange}
               />

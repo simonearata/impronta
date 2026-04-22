@@ -26,7 +26,7 @@ import {
   wineOut,
   zoneOut,
 } from "../src/serializers.js";
-import { extractInvoice, isSupportedMime } from "../src/gemini.js";
+import { extractInvoice, extractInvoiceFromExcel, isExcelMime, isSupportedMime } from "../src/gemini.js";
 
 /* ────────────────────────────────────────
    AUTH (in-memory sessions)
@@ -860,18 +860,25 @@ export async function adminRoutes(app: FastifyInstance) {
       return reply.code(400).send({ ok: false, message: "Nessun file inviato." });
     }
 
-    if (!isSupportedMime(file.mimetype)) {
+    const isExcel = isExcelMime(file.mimetype);
+    if (!isSupportedMime(file.mimetype) && !isExcel) {
       return reply.code(400).send({
         ok: false,
-        message: `Formato non supportato: ${file.mimetype}. Usa JPEG, PNG, WebP o PDF.`,
+        message: `Formato non supportato: ${file.mimetype}. Usa JPEG, PNG, WebP, PDF o Excel (.xlsx/.xls).`,
       });
     }
 
     const buf = await file.toBuffer();
 
     // Salva il file per riferimento futuro
-    const ext = file.mimetype === "application/pdf" ? ".pdf"
-      : file.mimetype === "image/png" ? ".png" : ".jpg";
+    const extMap: Record<string, string> = {
+      "application/pdf": ".pdf",
+      "image/png": ".png",
+      "image/webp": ".webp",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
+      "application/vnd.ms-excel": ".xls",
+    };
+    const ext = extMap[file.mimetype] ?? ".jpg";
     const filename = `invoice_${randomUUID()}${ext}`;
     const uploadDir = resolve(process.env.UPLOAD_DIR || "./uploads");
     await mkdir(uploadDir, { recursive: true });
@@ -880,7 +887,9 @@ export async function adminRoutes(app: FastifyInstance) {
     const invoiceFileUrl = `${baseUrl}/${filename}`;
 
     const ownerName = process.env.OWNER_NAME ?? "il titolare";
-    const extracted = await extractInvoice(apiKey, ownerName, buf, file.mimetype);
+    const extracted = isExcel
+      ? await extractInvoiceFromExcel(apiKey, ownerName, buf)
+      : await extractInvoice(apiKey, ownerName, buf, file.mimetype);
 
     return { ...GeminiExtractedSchema.parse(extracted), invoiceFileUrl };
   });
