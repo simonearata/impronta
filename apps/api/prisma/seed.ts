@@ -23,6 +23,14 @@ async function upsertSingletons() {
   const adminEmail = (process.env.ADMIN_EMAIL || "admin@example.com").trim();
   const adminPassword = process.env.ADMIN_PASSWORD || "changeme123";
 
+  const DEMO_EMAILS = ["admin@example.com", "admin@impronta.local"];
+  if (!DEMO_EMAILS.includes(adminEmail)) {
+    const deleted = await prisma.adminUser.deleteMany({
+      where: { email: { in: DEMO_EMAILS } },
+    });
+    if (deleted.count > 0) console.log(`Utenze demo rimosse: ${deleted.count}`);
+  }
+
   const existingAdmin = await prisma.adminUser.findUnique({
     where: { email: adminEmail },
   });
