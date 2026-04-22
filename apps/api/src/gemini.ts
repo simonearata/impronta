@@ -79,6 +79,30 @@ ${JSON_SCHEMA}
 ${LINE_RULES}`;
 }
 
+const MODEL_FALLBACK = ["gemini-2.5-flash", "gemini-2.0-flash"];
+
+async function generateWithFallback(
+  apiKey: string,
+  parts: Parameters<ReturnType<GoogleGenerativeAI["getGenerativeModel"]>["generateContent"]>[0],
+): Promise<string> {
+  let lastErr: unknown;
+  for (const modelName of MODEL_FALLBACK) {
+    try {
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: modelName });
+      const result = await model.generateContent(parts);
+      return result.response.text();
+    } catch (e: any) {
+      if (e?.message?.includes("503") || e?.message?.includes("overloaded")) {
+        lastErr = e;
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw lastErr;
+}
+
 function parseGeminiJson(raw: string): unknown {
   return JSON.parse(
     raw
@@ -104,15 +128,11 @@ export async function extractInvoice(
   fileBuffer: Buffer,
   mimeType: string,
 ): Promise<z.infer<typeof GeminiExtractedSchema>> {
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
-  const result = await model.generateContent([
+  const text = await generateWithFallback(apiKey, [
     { inlineData: { mimeType, data: fileBuffer.toString("base64") } },
     buildExtractionPrompt(ownerName),
   ]);
-
-  return GeminiExtractedSchema.parse(parseGeminiJson(result.response.text()));
+  return GeminiExtractedSchema.parse(parseGeminiJson(text));
 }
 
 export async function extractInvoiceFromExcel(
@@ -121,14 +141,11 @@ export async function extractInvoiceFromExcel(
   fileBuffer: Buffer,
 ): Promise<z.infer<typeof GeminiExtractedSchema>> {
   const csv = excelToCsv(fileBuffer);
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
-  const result = await model.generateContent(
+  const text = await generateWithFallback(
+    apiKey,
     `${buildExcelExtractionPrompt(ownerName)}\n\nContenuto del documento (tabella CSV):\n${csv}`,
   );
-
-  const extracted = GeminiExtractedSchema.parse(parseGeminiJson(result.response.text()));
+  const extracted = GeminiExtractedSchema.parse(parseGeminiJson(text));
   // Garanzia doppia: Excel è sempre una fattura emessa dal titolare
   return { ...extracted, type: "out" };
 }
