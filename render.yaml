@@ -14,8 +14,8 @@ services:
     plan: starter
     rootDir: apps/api
     buildCommand: |
-      npm install -g pnpm &&
-      pnpm install --ignore-scripts &&
+      npm install -g pnpm npm-run-all &&
+      pnpm install &&
       pnpm db:generate &&
       pnpm build
     startCommand: |
