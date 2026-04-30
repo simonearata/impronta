@@ -4,6 +4,7 @@ import { z } from "zod";
 import { AdminImageField } from "../components/AdminImageField";
 import { Meta } from "../components/Meta";
 import { Button } from "../components/Button";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { EmptyState } from "../components/EmptyState";
 import { Input } from "../components/Input";
 import { slugify } from "../shared/slug";
@@ -32,6 +33,7 @@ export function AdminZoneEditPage() {
   const [slugTouched, setSlugTouched] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const initial = useMemo<Form>(() => {
     return {
@@ -95,11 +97,6 @@ export function AdminZoneEditPage() {
 
   async function onDelete() {
     if (isNew) return;
-    const ok = window.confirm(
-      "Eliminare questa zona? Questa azione non è reversibile.",
-    );
-    if (!ok) return;
-
     try {
       setBusy(true);
       await adminDeleteZone(String(id));
@@ -131,8 +128,8 @@ export function AdminZoneEditPage() {
           </Link>
           {!isNew ? (
             <button
-              className="focus-ring rounded-full px-4 py-2 text-sm border border-black/10 bg-black/5"
-              onClick={onDelete}
+              className="focus-ring rounded-full px-4 py-2 text-sm border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+              onClick={() => setConfirmOpen(true)}
               disabled={busy}
             >
               Elimina
@@ -262,6 +259,13 @@ export function AdminZoneEditPage() {
           </div>
         </div>
       </div>
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Elimina zona"
+        message="Questa azione è permanente e non può essere annullata. La zona verrà rimossa dal database."
+        onConfirm={() => { setConfirmOpen(false); onDelete(); }}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </>
   );
 }

@@ -5,6 +5,7 @@ import { AdminImageField } from "../components/AdminImageField";
 import type { WineType } from "../shared/types";
 import { Meta } from "../components/Meta";
 import { Button } from "../components/Button";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { EmptyState } from "../components/EmptyState";
 import { Select } from "../components/Select";
 import { Input } from "../components/Input";
@@ -50,6 +51,7 @@ export function AdminWineEditPage() {
   const [slugTouched, setSlugTouched] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const initial = useMemo<Form>(() => {
     return {
@@ -176,11 +178,6 @@ export function AdminWineEditPage() {
 
   async function onDelete() {
     if (isNew) return;
-    const ok = window.confirm(
-      "Eliminare questo vino? Questa azione non è reversibile.",
-    );
-    if (!ok) return;
-
     try {
       setBusy(true);
       await adminDeleteWine(String(id));
@@ -212,8 +209,8 @@ export function AdminWineEditPage() {
           </Link>
           {!isNew ? (
             <button
-              className="focus-ring rounded-full px-4 py-2 text-sm border border-black/10 bg-black/5"
-              onClick={onDelete}
+              className="focus-ring rounded-full px-4 py-2 text-sm border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+              onClick={() => setConfirmOpen(true)}
               disabled={busy}
             >
               Elimina
@@ -489,6 +486,13 @@ export function AdminWineEditPage() {
           </div>
         </div>
       )}
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Elimina vino"
+        message="Questa azione è permanente e non può essere annullata. Il vino verrà rimosso dal database."
+        onConfirm={() => { setConfirmOpen(false); onDelete(); }}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </>
   );
 }
