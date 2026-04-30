@@ -671,6 +671,7 @@ export function useAdminMovements() {
 
 export type ExtractedInvoiceLine = {
   wineName: string;
+  wineId: string | null;
   quantity: number;
   unitPriceCents: number | null;
   notes: string | null;
@@ -693,6 +694,7 @@ const ExtractedInvoiceSchema = z.object({
   invoiceFileUrl: z.string().nullable(),
   lines: z.array(z.object({
     wineName: z.string(),
+    wineId: z.string().nullable().optional(),
     quantity: z.number(),
     unitPriceCents: z.number().nullable(),
     notes: z.string().nullable(),
