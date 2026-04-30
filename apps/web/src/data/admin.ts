@@ -671,7 +671,7 @@ export function useAdminMovements() {
 
 export type ExtractedInvoiceLine = {
   wineName: string;
-  wineId: string | null;
+  wineId?: string | null;
   quantity: number;
   unitPriceCents: number | null;
   notes: string | null;
@@ -694,7 +694,7 @@ const ExtractedInvoiceSchema = z.object({
   invoiceFileUrl: z.string().nullable(),
   lines: z.array(z.object({
     wineName: z.string(),
-    wineId: z.string().nullable().optional(),
+    wineId: z.string().nullable().optional().default(null),
     quantity: z.number(),
     unitPriceCents: z.number().nullable(),
     notes: z.string().nullable(),
@@ -767,9 +767,9 @@ REGOLE: includi SOLO vini/bevande alcoliche. Escludi KEG, imballi, trasporti. La
     supplierOrCustomer: "Fornitore Mock Srl",
     invoiceFileUrl: null,
     lines: [
-      { wineName: "Tinc Set 2024", quantity: 12, unitPriceCents: 750, notes: null },
-      { wineName: "Baudili Orange 2025", quantity: 6, unitPriceCents: 800, notes: null },
-      { wineName: "Baudili Blanc 2024", quantity: 6, unitPriceCents: 725, notes: null },
+      { wineName: "Tinc Set 2024", wineId: null, quantity: 12, unitPriceCents: 750, notes: null },
+      { wineName: "Baudili Orange 2025", wineId: null, quantity: 6, unitPriceCents: 800, notes: null },
+      { wineName: "Baudili Blanc 2024", wineId: null, quantity: 6, unitPriceCents: 725, notes: null },
     ],
   };
 }
