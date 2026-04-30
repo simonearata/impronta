@@ -94,7 +94,7 @@ ${JSON_SCHEMA}
 ${LINE_RULES}`;
 }
 
-const MODEL_FALLBACK = ["gemini-2.5-flash", "gemini-2.0-flash"];
+const MODEL_FALLBACK = ["gemini-2.0-flash", "gemini-2.5-flash"];
 
 async function generateWithFallback(
   apiKey: string,
@@ -108,7 +108,7 @@ async function generateWithFallback(
       const result = await model.generateContent(parts);
       return result.response.text();
     } catch (e: any) {
-      if (e?.message?.includes("503") || e?.message?.includes("overloaded")) {
+      if (e?.message?.includes("503") || e?.message?.includes("overloaded") || e?.message?.includes("429") || e?.message?.includes("quota") || e?.message?.includes("rate")) {
         lastErr = e;
         continue;
       }
