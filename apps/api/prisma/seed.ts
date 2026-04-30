@@ -252,20 +252,12 @@ async function main() {
       );
       return prisma.wine.upsert({
         where: { slug },
+        // Non sovrascrivere dati compilati dall'admin (immagini, prezzi, note, ecc.)
         update: {
           name: w.name,
           vintage: w.vintage ?? null,
           type: w.type,
           producerId: producer.id,
-          tastingNotes: "Note in aggiornamento.",
-          vinification: null,
-          pairing: null,
-          grapes: null,
-          alcohol: null,
-          priceCents: null,
-          isAvailable: true,
-          bottleSizeMl: 750,
-          imageUrl: null,
         },
         create: {
           producerId: producer.id,
@@ -276,7 +268,7 @@ async function main() {
           grapes: null,
           alcohol: null,
           vinification: null,
-          tastingNotes: "Note in aggiornamento.",
+          tastingNotes: null,
           pairing: null,
           priceCents: null,
           isAvailable: true,
@@ -287,13 +279,20 @@ async function main() {
     }),
   );
 
-  const featuredZoneIds = zones.slice(0, 3).map((z) => z.id);
-  const featuredProducerIds = producers.slice(0, 6).map((p) => p.id);
-
-  await prisma.homeContent.update({
-    where: { id: 1 },
-    data: { featuredZoneIds, featuredProducerIds },
-  });
+  // Imposta i featured solo se l'admin non li ha ancora configurati
+  const currentHome = await prisma.homeContent.findUnique({ where: { id: 1 } });
+  if (currentHome && currentHome.featuredZoneIds.length === 0) {
+    await prisma.homeContent.update({
+      where: { id: 1 },
+      data: { featuredZoneIds: zones.slice(0, 3).map((z) => z.id) },
+    });
+  }
+  if (currentHome && currentHome.featuredProducerIds.length === 0) {
+    await prisma.homeContent.update({
+      where: { id: 1 },
+      data: { featuredProducerIds: producers.slice(0, 6).map((p) => p.id) },
+    });
+  }
 
   await prisma.$disconnect();
   void wines;
