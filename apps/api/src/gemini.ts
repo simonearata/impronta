@@ -31,6 +31,7 @@ const JSON_SCHEMA = `{
   "lines": [
     {
       "wineName": "nome completo del vino con annata se presente (es. 'Tinc Set 2024', 'Baudili Orange 2025')",
+      "wineId": "id dal catalogo vini se trovi una corrispondenza semantica, altrimenti null",
       "quantity": numero intero di bottiglie,
       "unitPriceCents": prezzo unitario NETTO in centesimi di euro dopo eventuali sconti (intero, null se assente),
       "notes": "eventuali note utili: gradazione, lotto, codice interno" (null se assente)
@@ -45,8 +46,22 @@ const LINE_RULES = `REGOLE RIGHE:
 - La quantità è in bottiglie (non casse)
 - Per il nome del vino includi l'annata se riportata nel documento`;
 
-function buildExtractionPrompt(ownerName: string): string {
-  return `Analizza questa fattura o documento commerciale ed estrai i dati strutturati.
+export interface WineForMatching {
+  id: string;
+  name: string;
+  vintage: number | null;
+  producer: string;
+}
+
+function buildCatalogSection(wines: WineForMatching[]): string {
+  if (wines.length === 0) return "";
+  const list = wines.map((w) => `  { "id": "${w.id}", "name": "${w.name}${w.vintage ? ` ${w.vintage}` : ""}", "producer": "${w.producer}" }`).join(",\n");
+  return `\nCATALOGO VINI (usa gli id per il campo wineId — abbina per somiglianza semantica ignorando prefissi come "Vi", "ECO", nomi produttore nel titolo, ecc.):
+[\n${list}\n]\n`;
+}
+
+function buildExtractionPrompt(ownerName: string, wines: WineForMatching[]): string {
+  return `Analizza questa fattura o documento commerciale ed estrai i dati strutturati.${buildCatalogSection(wines)}
 
 TITOLARE DEL SISTEMA: "${ownerName}"
 
@@ -68,8 +83,8 @@ ${JSON_SCHEMA}
 ${LINE_RULES}`;
 }
 
-function buildExcelExtractionPrompt(ownerName: string): string {
-  return `Analizza questa tabella CSV che rappresenta una fattura emessa DA "${ownerName}" verso un cliente.
+function buildExcelExtractionPrompt(ownerName: string, wines: WineForMatching[]): string {
+  return `Analizza questa tabella CSV che rappresenta una fattura emessa DA "${ownerName}" verso un cliente.${buildCatalogSection(wines)}
 
 Il campo "type" è sempre "out" perché questo documento è sempre una vendita del titolare.
 
@@ -127,10 +142,11 @@ export async function extractInvoice(
   ownerName: string,
   fileBuffer: Buffer,
   mimeType: string,
+  wines: WineForMatching[] = [],
 ): Promise<z.infer<typeof GeminiExtractedSchema>> {
   const text = await generateWithFallback(apiKey, [
     { inlineData: { mimeType, data: fileBuffer.toString("base64") } },
-    buildExtractionPrompt(ownerName),
+    buildExtractionPrompt(ownerName, wines),
   ]);
   return GeminiExtractedSchema.parse(parseGeminiJson(text));
 }
@@ -139,13 +155,13 @@ export async function extractInvoiceFromExcel(
   apiKey: string,
   ownerName: string,
   fileBuffer: Buffer,
+  wines: WineForMatching[] = [],
 ): Promise<z.infer<typeof GeminiExtractedSchema>> {
   const csv = excelToCsv(fileBuffer);
   const text = await generateWithFallback(
     apiKey,
-    `${buildExcelExtractionPrompt(ownerName)}\n\nContenuto del documento (tabella CSV):\n${csv}`,
+    `${buildExcelExtractionPrompt(ownerName, wines)}\n\nContenuto del documento (tabella CSV):\n${csv}`,
   );
   const extracted = GeminiExtractedSchema.parse(parseGeminiJson(text));
-  // Garanzia doppia: Excel è sempre una fattura emessa dal titolare
   return { ...extracted, type: "out" };
 }

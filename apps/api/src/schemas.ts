@@ -137,6 +137,7 @@ export const InventoryMovementInputSchema = z.object({
 
 export const GeminiLineSchema = z.object({
   wineName: z.string(),
+  wineId: z.string().nullable(),
   quantity: z.number().positive(),
   unitPriceCents: z.number().int().nullable(),
   notes: z.string().nullable(),

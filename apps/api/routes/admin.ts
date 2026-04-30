@@ -887,9 +887,20 @@ export async function adminRoutes(app: FastifyInstance) {
     const invoiceFileUrl = `${baseUrl}/${filename}`;
 
     const ownerName = process.env.OWNER_NAME ?? "il titolare";
+
+    const winesWithProducer = await prisma.wine.findMany({
+      select: { id: true, name: true, vintage: true, producer: { select: { name: true } } },
+    });
+    const winesCatalog = winesWithProducer.map((w) => ({
+      id: w.id,
+      name: w.name,
+      vintage: w.vintage,
+      producer: w.producer.name,
+    }));
+
     const extracted = isExcel
-      ? await extractInvoiceFromExcel(apiKey, ownerName, buf)
-      : await extractInvoice(apiKey, ownerName, buf, file.mimetype);
+      ? await extractInvoiceFromExcel(apiKey, ownerName, buf, winesCatalog)
+      : await extractInvoice(apiKey, ownerName, buf, file.mimetype, winesCatalog);
 
     return { ...GeminiExtractedSchema.parse(extracted), invoiceFileUrl };
   });

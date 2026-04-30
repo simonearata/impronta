@@ -26,7 +26,7 @@ function slugify(s: string) {
 
 /* ── name matching ─────────────────────────────────────── */
 
-const STOP_WORDS = new Set(["vi", "el", "els", "la", "les", "de", "del", "dels", "eco", "the", "le", "du", "des", "vino", "wine"]);
+const STOP_WORDS = new Set(["vi", "el", "els", "la", "les", "de", "del", "dels", "eco", "the", "le", "du", "des", "vino", "wine", "tanca", "bio", "organic", "naturale", "natural", "sin", "sans"]);
 
 function normalizeWords(s: string): string[] {
   return s
@@ -51,7 +51,9 @@ function matchWineId(
     const common = invoiceWords.filter((iw) =>
       catalogWords.some((cw) => cw.includes(iw) || iw.includes(cw)),
     );
-    const score = common.length / Math.max(invoiceWords.length, catalogWords.length);
+    // Recall-based: quante parole del catalogo sono presenti nella fattura?
+    // Gestisce il caso in cui il nome fattura include anche il nome del produttore
+    const score = common.length / Math.max(catalogWords.length, 1);
     if (score > bestScore) { bestScore = score; bestId = w.id; }
   }
   return bestScore >= 0.4 ? { id: bestId, score: bestScore } : { id: "", score: 0 };
@@ -136,7 +138,9 @@ function buildReview(
     supplierOrCustomer: extracted.supplierOrCustomer ?? "",
     invoiceFileUrl: extracted.invoiceFileUrl ?? "",
     lines: extracted.lines.map((l) => {
-      const match = matchWineId(l.wineName, wines);
+      // Usa il wineId restituito da Gemini; fallback al fuzzy matching locale
+      const geminiId = l.wineId && wines.some((w) => w.id === l.wineId) ? l.wineId : "";
+      const match = geminiId ? { id: geminiId, score: 1 } : matchWineId(l.wineName, wines);
       return {
         included: true,
         wineName: l.wineName,
