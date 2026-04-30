@@ -20,7 +20,6 @@ services:
       pnpm build
     startCommand: |
       npx prisma migrate deploy &&
-      npx prisma db seed &&
       node dist/src/index.js
     envVars:
       - key: NODE_ENV
