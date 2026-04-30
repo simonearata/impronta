@@ -42,19 +42,43 @@ export function HomePage() {
   const winesSectionRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    const scrolling = { active: false };
+    const state = { active: false, touchStartY: 0 };
+
+    function snapToWines() {
+      state.active = true;
+      const top = (winesSectionRef.current?.getBoundingClientRect().top ?? 0) + window.scrollY - 64;
+      window.scrollTo({ top, behavior: "smooth" });
+      setTimeout(() => { state.active = false; }, 900);
+    }
+
     function onWheel(e: WheelEvent) {
-      if (scrolling.active) return;
-      if (e.deltaY > 0 && window.scrollY < window.innerHeight * 0.5) {
+      if (state.active) return;
+      if (e.deltaY > 0 && window.scrollY < window.innerHeight * 0.7) {
         e.preventDefault();
-        scrolling.active = true;
-        const top = (winesSectionRef.current?.getBoundingClientRect().top ?? 0) + window.scrollY - 64;
-        window.scrollTo({ top, behavior: "smooth" });
-        setTimeout(() => { scrolling.active = false; }, 900);
+        snapToWines();
       }
     }
+
+    function onTouchStart(e: TouchEvent) {
+      state.touchStartY = e.touches[0].clientY;
+    }
+
+    function onTouchEnd(e: TouchEvent) {
+      if (state.active) return;
+      const deltaY = state.touchStartY - e.changedTouches[0].clientY;
+      if (deltaY > 30 && window.scrollY < window.innerHeight * 0.7) {
+        snapToWines();
+      }
+    }
+
     window.addEventListener("wheel", onWheel, { passive: false });
-    return () => window.removeEventListener("wheel", onWheel);
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchend", onTouchEnd, { passive: true });
+    return () => {
+      window.removeEventListener("wheel", onWheel);
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchend", onTouchEnd);
+    };
   }, []);
 
   const allZones = zones.data || [];
@@ -88,7 +112,7 @@ export function HomePage() {
       <Meta title="Home" path="/" />
 
       {/* Intro */}
-      <section className="h-screen flex items-center justify-center">
+      <section className="h-[70vh] flex items-center justify-center">
         <h1>
           <img
             src="/logo.png"
