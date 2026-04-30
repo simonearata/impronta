@@ -94,7 +94,7 @@ ${JSON_SCHEMA}
 ${LINE_RULES}`;
 }
 
-const MODEL_FALLBACK = ["gemini-2.0-flash", "gemini-2.5-flash"];
+const MODEL_FALLBACK = ["gemini-2.0-flash-lite", "gemini-2.0-flash", "gemini-2.5-flash"];
 
 interface GenerateResult {
   text: string;
@@ -102,8 +102,8 @@ interface GenerateResult {
   outputTokens: number;
 }
 
-const RETRIES_PER_MODEL = 2;
-const RETRY_DELAY_MS = 2000;
+const RETRIES_PER_MODEL = 3;
+const RETRY_BASE_DELAY_MS = 3000;
 
 async function generateWithFallback(
   apiKey: string,
@@ -127,7 +127,7 @@ async function generateWithFallback(
         if (!isTransient) throw e;
         lastErr = e;
         if (attempt < RETRIES_PER_MODEL - 1) {
-          await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+          await new Promise((r) => setTimeout(r, RETRY_BASE_DELAY_MS * Math.pow(2, attempt)));
         }
       }
     }
