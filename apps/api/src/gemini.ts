@@ -94,7 +94,7 @@ ${JSON_SCHEMA}
 ${LINE_RULES}`;
 }
 
-const MODEL_FALLBACK = ["gemini-2.0-flash", "gemini-2.0-flash-lite"];
+const MODEL_FALLBACK = ["gemini-2.0-flash", "gemini-2.5-flash"];
 
 interface GenerateResult {
   text: string;
