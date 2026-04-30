@@ -96,17 +96,28 @@ ${LINE_RULES}`;
 
 const MODEL_FALLBACK = ["gemini-2.0-flash", "gemini-2.5-flash"];
 
+interface GenerateResult {
+  text: string;
+  inputTokens: number;
+  outputTokens: number;
+}
+
 async function generateWithFallback(
   apiKey: string,
   parts: Parameters<ReturnType<GoogleGenerativeAI["getGenerativeModel"]>["generateContent"]>[0],
-): Promise<string> {
+): Promise<GenerateResult> {
   let lastErr: unknown;
   for (const modelName of MODEL_FALLBACK) {
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ model: modelName });
       const result = await model.generateContent(parts);
-      return result.response.text();
+      const usage = result.response.usageMetadata;
+      return {
+        text: result.response.text(),
+        inputTokens: usage?.promptTokenCount ?? 0,
+        outputTokens: usage?.candidatesTokenCount ?? 0,
+      };
     } catch (e: any) {
       if (e?.message?.includes("503") || e?.message?.includes("overloaded") || e?.message?.includes("429") || e?.message?.includes("quota") || e?.message?.includes("rate")) {
         lastErr = e;
@@ -116,6 +127,10 @@ async function generateWithFallback(
     }
   }
   throw lastErr;
+}
+
+export function estimateCostEur(inputTokens: number, outputTokens: number): number {
+  return (inputTokens * 0.10 + outputTokens * 0.40) / 1_000_000;
 }
 
 function parseGeminiJson(raw: string): unknown {
@@ -137,18 +152,24 @@ function excelToCsv(buffer: Buffer): string {
   }).join("\n\n");
 }
 
+export interface ExtractResult {
+  data: z.infer<typeof GeminiExtractedSchema>;
+  inputTokens: number;
+  outputTokens: number;
+}
+
 export async function extractInvoice(
   apiKey: string,
   ownerName: string,
   fileBuffer: Buffer,
   mimeType: string,
   wines: WineForMatching[] = [],
-): Promise<z.infer<typeof GeminiExtractedSchema>> {
-  const text = await generateWithFallback(apiKey, [
+): Promise<ExtractResult> {
+  const { text, inputTokens, outputTokens } = await generateWithFallback(apiKey, [
     { inlineData: { mimeType, data: fileBuffer.toString("base64") } },
     buildExtractionPrompt(ownerName, wines),
   ]);
-  return GeminiExtractedSchema.parse(parseGeminiJson(text));
+  return { data: GeminiExtractedSchema.parse(parseGeminiJson(text)), inputTokens, outputTokens };
 }
 
 export async function extractInvoiceFromExcel(
@@ -156,12 +177,12 @@ export async function extractInvoiceFromExcel(
   ownerName: string,
   fileBuffer: Buffer,
   wines: WineForMatching[] = [],
-): Promise<z.infer<typeof GeminiExtractedSchema>> {
+): Promise<ExtractResult> {
   const csv = excelToCsv(fileBuffer);
-  const text = await generateWithFallback(
+  const { text, inputTokens, outputTokens } = await generateWithFallback(
     apiKey,
     `${buildExcelExtractionPrompt(ownerName, wines)}\n\nContenuto del documento (tabella CSV):\n${csv}`,
   );
   const extracted = GeminiExtractedSchema.parse(parseGeminiJson(text));
-  return { ...extracted, type: "out" };
+  return { data: { ...extracted, type: "out" }, inputTokens, outputTokens };
 }

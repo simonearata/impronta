@@ -26,7 +26,7 @@ import {
   wineOut,
   zoneOut,
 } from "../src/serializers.js";
-import { extractInvoice, extractInvoiceFromExcel, isExcelMime, isSupportedMime } from "../src/gemini.js";
+import { estimateCostEur, extractInvoice, extractInvoiceFromExcel, isExcelMime, isSupportedMime } from "../src/gemini.js";
 
 /* ────────────────────────────────────────
    AUTH (in-memory sessions)
@@ -887,6 +887,20 @@ export async function adminRoutes(app: FastifyInstance) {
     const invoiceFileUrl = `${baseUrl}/${filename}`;
 
     const ownerName = process.env.OWNER_NAME ?? "il titolare";
+    const BUDGET_EUR = 10;
+    const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+
+    // Controlla budget mensile
+    const settings = await prisma.siteSettings.findUnique({ where: { id: 1 } });
+    if (settings) {
+      const spent = settings.geminiMonthKey === currentMonth ? settings.geminiSpentEur : 0;
+      if (spent >= BUDGET_EUR) {
+        return reply.code(429).send({
+          ok: false,
+          message: `Budget Gemini mensile di €${BUDGET_EUR} raggiunto. Riprova il mese prossimo.`,
+        });
+      }
+    }
 
     const winesWithProducer = await prisma.wine.findMany({
       select: { id: true, name: true, vintage: true, producer: { select: { name: true } } },
@@ -898,10 +912,21 @@ export async function adminRoutes(app: FastifyInstance) {
       producer: w.producer.name,
     }));
 
-    const extracted = isExcel
+    const result = isExcel
       ? await extractInvoiceFromExcel(apiKey, ownerName, buf, winesCatalog)
       : await extractInvoice(apiKey, ownerName, buf, file.mimetype, winesCatalog);
 
-    return { ...GeminiExtractedSchema.parse(extracted), invoiceFileUrl };
+    // Aggiorna contatore spesa mensile
+    const callCostEur = estimateCostEur(result.inputTokens, result.outputTokens);
+    const prevSpent = settings?.geminiMonthKey === currentMonth ? (settings?.geminiSpentEur ?? 0) : 0;
+    await prisma.siteSettings.updateMany({
+      where: { id: 1 },
+      data: {
+        geminiMonthKey: currentMonth,
+        geminiSpentEur: prevSpent + callCostEur,
+      },
+    });
+
+    return { ...GeminiExtractedSchema.parse(result.data), invoiceFileUrl };
   });
 }

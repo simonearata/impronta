@@ -89,13 +89,15 @@ model ContactLead {
 }
 
 model SiteSettings {
-  id           Int    @id
-  contactEmail String
-  phone        String?
-  address      String?
-  hours        String?
-  socials      Json    @default("{}")
-  updatedAt    DateTime @updatedAt
+  id              Int      @id
+  contactEmail    String
+  phone           String?
+  address         String?
+  hours           String?
+  socials         Json     @default("{}")
+  updatedAt       DateTime @updatedAt
+  geminiMonthKey  String   @default("")
+  geminiSpentEur  Float    @default(0)
 }
 
 model HomeContent {
