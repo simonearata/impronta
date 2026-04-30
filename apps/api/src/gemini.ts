@@ -94,7 +94,7 @@ ${JSON_SCHEMA}
 ${LINE_RULES}`;
 }
 
-const MODEL_FALLBACK = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash"];
+const MODEL_FALLBACK = ["gemini-2.0-flash", "gemini-2.0-flash-lite"];
 
 interface GenerateResult {
   text: string;
@@ -102,28 +102,34 @@ interface GenerateResult {
   outputTokens: number;
 }
 
+const RETRIES_PER_MODEL = 2;
+const RETRY_DELAY_MS = 2000;
+
 async function generateWithFallback(
   apiKey: string,
   parts: Parameters<ReturnType<GoogleGenerativeAI["getGenerativeModel"]>["generateContent"]>[0],
 ): Promise<GenerateResult> {
   let lastErr: unknown;
   for (const modelName of MODEL_FALLBACK) {
-    try {
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: modelName });
-      const result = await model.generateContent(parts);
-      const usage = result.response.usageMetadata;
-      return {
-        text: result.response.text(),
-        inputTokens: usage?.promptTokenCount ?? 0,
-        outputTokens: usage?.candidatesTokenCount ?? 0,
-      };
-    } catch (e: any) {
-      if (e?.message?.includes("503") || e?.message?.includes("overloaded") || e?.message?.includes("429") || e?.message?.includes("quota") || e?.message?.includes("rate")) {
+    for (let attempt = 0; attempt < RETRIES_PER_MODEL; attempt++) {
+      try {
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({ model: modelName });
+        const result = await model.generateContent(parts);
+        const usage = result.response.usageMetadata;
+        return {
+          text: result.response.text(),
+          inputTokens: usage?.promptTokenCount ?? 0,
+          outputTokens: usage?.candidatesTokenCount ?? 0,
+        };
+      } catch (e: any) {
+        const isTransient = e?.message?.includes("503") || e?.message?.includes("overloaded") || e?.message?.includes("429") || e?.message?.includes("quota") || e?.message?.includes("rate");
+        if (!isTransient) throw e;
         lastErr = e;
-        continue;
+        if (attempt < RETRIES_PER_MODEL - 1) {
+          await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+        }
       }
-      throw e;
     }
   }
   throw lastErr;
